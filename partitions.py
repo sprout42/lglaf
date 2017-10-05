@@ -125,14 +125,23 @@ def list_partitions(comm, part_filter=None):
     if part_filter:
         try: part_filter = find_partition(partitions, part_filter)[1]
         except ValueError: pass # No results is OK.
-    print("Number  StartSector    Size     Name")
+
+    if args.batch:
+        print("Number,Label,StartSector,Size,SectorCount,HumanSize")
+    else:
+       print("Number    Label   StartSector     Size    SectorCount Size (human readable)")
+
     for part_label, part_name in partitions.items():
         if part_filter and part_filter != part_name:
             continue
         part_num = int(part_name.lstrip('mmcblk0p'))
         part_offset, part_size = partition_info(comm, part_name)
-        print("%4d    %10d  %10s  %s" % (part_num,
-            part_offset / BLOCK_SIZE, human_readable(part_size), part_label))
+        sector_count = part_size // BLOCK_SIZE
+
+        if args.batch:
+            print("%d,%s,%d,%d,%d,%s" % (part_num, part_label, part_offset / BLOCK_SIZE, part_size,sector_count, human_readable(part_size)))
+        else:
+            print("%4d    %10d  %10s  %s" % (part_num, part_offset / BLOCK_SIZE, human_readable(part_size), part_label))
 
 # On Linux, one bulk read returns at most 16 KiB. 32 bytes are part of the first
 # header, so remove one block size (512 bytes) to stay within that margin.
@@ -234,6 +243,8 @@ parser.add_argument("partition", nargs='?',
         " or partition name (e.g. 'recovery')")
 parser.add_argument("--skip-hello", action="store_true",
         help="Immediately send commands, skip HELO message")
+parser.add_argument("--batch", action="store_true",
+        help="Print partition list in machine readable output format")
 
 def main():
     args = parser.parse_args()

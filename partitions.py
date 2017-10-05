@@ -126,22 +126,31 @@ def list_partitions(comm, part_filter=None):
         try: part_filter = find_partition(partitions, part_filter)[1]
         except ValueError: pass # No results is OK.
 
-    if args.batch:
-        print("Number,Label,StartSector,Size,SectorCount,HumanSize")
-    else:
-       print("Number    Label   StartSector     Size    SectorCount Size (human readable)")
-
+    print("\nNumber            Label     StartSector     Bytes   SectorCount       Size")
+    print("------------------------------------------------------------------------------")
     for part_label, part_name in partitions.items():
         if part_filter and part_filter != part_name:
             continue
         part_num = int(part_name.lstrip('mmcblk0p'))
         part_offset, part_size = partition_info(comm, part_name)
         sector_count = part_size // BLOCK_SIZE
+        print("%4d    %16s  %10d  %12d %10d %15s" % (part_num, part_label, part_offset / BLOCK_SIZE, part_size,sector_count, human_readable(part_size)))
 
-        if args.batch:
-            print("%d,%s,%d,%d,%d,%s" % (part_num, part_label, part_offset / BLOCK_SIZE, part_size,sector_count, human_readable(part_size)))
-        else:
-            print("%4d    %10d  %10s  %s" % (part_num, part_offset / BLOCK_SIZE, human_readable(part_size), part_label))
+def batch_list_partitions(comm, part_filter=None):
+    partitions = get_partitions(comm)
+    if part_filter:
+        try: part_filter = find_partition(partitions, part_filter)[1]
+        except ValueError: pass # No results is OK.
+
+    print("Number,Label,StartSector,Size,SectorCount,HumanSize")
+    for part_label, part_name in partitions.items():
+        if part_filter and part_filter != part_name:
+            continue
+        part_num = int(part_name.lstrip('mmcblk0p'))
+        part_offset, part_size = partition_info(comm, part_name)
+        sector_count = part_size // BLOCK_SIZE
+        print("%d,%s,%d,%d,%d,%s" % (part_num, part_label, part_offset / BLOCK_SIZE, part_size,sector_count, human_readable(part_size)))
+
 
 # On Linux, one bulk read returns at most 16 KiB. 32 bytes are part of the first
 # header, so remove one block size (512 bytes) to stay within that margin.
@@ -265,7 +274,10 @@ def main():
             lglaf.try_hello(comm)
 
         if args.list:
-            list_partitions(comm, args.partition)
+            if not args.batch:
+                list_partitions(comm, args.partition)
+            else:
+                batch_list_partitions(comm, args.partition)
             return
 
         partitions = get_partitions(comm)

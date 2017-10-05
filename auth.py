@@ -15,6 +15,7 @@ parser = argparse.ArgumentParser()
 parser = argparse.ArgumentParser(description='LG LAF Download Mode utility')
 parser.add_argument("--auth", action="store_true", help="auth LAF")
 parser.add_argument("--debug", action='store_true', help="Enable debug messages")
+parser.add_argument("--skip-hello", action="store_true", help="Immediately send commands, skip HELO message")
 
 def key_transform(old_key):
     new_key = ''
@@ -63,7 +64,9 @@ def main():
     comm = lglaf.autodetect_device()
     with closing(comm):
         do_challenge_response(comm)
-        lglaf.try_hello(comm)
+        
+        if not args.skip_hello:
+            lglaf.try_hello(comm)
 
 if __name__ == '__main__':
     try:

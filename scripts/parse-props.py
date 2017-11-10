@@ -40,20 +40,20 @@ def get_int(data, shadow, offset):
 # Description of the contents
 keys = [
     (0x3f9, get_str, "download cable"),
-    (0x42b, get_int, "battery level"),
+    (0x42b, get_int, "battery_level"),
     (0x010, get_chr, "download type"),
     (0x021, get_int, "download speed"),
     (0x403, get_str, "usb version"),
     (0x417, get_str, "hardware revision"),
     (0x029, get_str, "download sw version"),
-    (0x14f, get_str, "device sw version"),
-    (0x42f, get_chr, "secure device"),
-    (0x4e8, get_str, "laf sw version"),
-    (0x24f, get_str, "device factory version"),
+    (0x14f, get_str, "device_sw_version"),
+    (0x42f, get_chr, "secure_device"),
+    (0x4e8, get_str, "la_sw_version"),
+    (0x24f, get_str, "device_factory_version"),
     (0x528, get_str, "device factory out version"),
     (0x3db, get_str, "pid"),
     (0x3c7, get_str, "imei"),
-    (0x131, get_str, "model name"),
+    (0x131, get_str, "model_name"),
     (0x430, get_str, "device build type"),
     (0x43a, get_str, "chipset platform"),
     (0x44e, get_str, "target_operator"),
@@ -92,7 +92,7 @@ def parse_data(data):
     shadow = [None] * len(data)
     for offset, getter, description in keys:
         resp = getter(data, shadow, offset)
-        print("%-26s = %r" % (description, resp))
+        print("%s:%r" % (description, resp))
 
     return data, shadow
 

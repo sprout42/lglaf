@@ -243,7 +243,8 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
             write_offset += chunksize
             if len(data) != chunksize:
                 break # Short read, end of file
-        _logger.info("Done after writing %d bytes from %s", written, local_path)
+        if not batch:
+            _logger.info("Done after writing %d bytes from %s", written, local_path)
 
 def print_progress(i, current_val, max_val):
     current_val = int(current_val / 1024)

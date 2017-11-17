@@ -196,6 +196,9 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
     # Sanity check
     assert part_offset >= 34 * 512, "Will not allow overwriting GPT scheme"
 
+    # ensure to TRIM the partition first
+    wipe_partition(comm, disk_fd, part_offset, part_size)
+
     with open_local_readable(local_path) as f:
         try:
             length = f.seek(0, 2)

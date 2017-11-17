@@ -250,6 +250,7 @@ def print_progress(i, current_val, max_val):
     current_val = int(current_val / 1024)
     max_val = int(max_val / 1024)
     print('%i:%i:%i' % (i, current_val, max_val))
+    sys.stdout.flush()
 
 def print_human_progress(i, current_val, max_val):
     current_val = int(current_val / 1024)

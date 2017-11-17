@@ -217,6 +217,8 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
                 _logger.debug("Will write %d bytes", length)
 
         written = 0
+        old_pos = -1
+        position = 0
         while write_offset < end_offset:
             chunksize = min(end_offset - write_offset, BLOCK_SIZE * MAX_BLOCK_SIZE)
             data = f.read(chunksize)
@@ -224,10 +226,35 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
                 break # End of file
             laf_write(comm, disk_fd, write_offset // BLOCK_SIZE, data)
             written += len(data)
+
+            curr_progress = int(written / part_size * 100)
+            curr_progress_c = int(curr_progress / 1024 / 1024)
+            _logger.debug("%i, %i , %i, %i",written,part_size,curr_progress,curr_progress_c)
+
+            if position <= part_size:
+                _logger.debug("%i <= %i", written, part_size)
+                old_pos = curr_progress
+                if not batch:
+                  print_human_progress(curr_progress, written, part_size)
+                else:
+                  print_progress(curr_progress, written, part_size)
+
             write_offset += chunksize
             if len(data) != chunksize:
                 break # Short read, end of file
         _logger.info("Done after writing %d bytes from %s", written, local_path)
+
+def print_progress(i, current_val, max_val):
+    current_val = int(current_val / 1024)
+    max_val = int(max_val / 1024)
+    print('%i:%i:%i' % (i, current_val, max_val))
+
+def print_human_progress(i, current_val, max_val):
+    current_val = int(current_val / 1024)
+    max_val = int(max_val / 1024)
+    sys.stdout.write(' (%i / %i KB)' % (current_val, max_val))
+    sys.stdout.write("\r [ %d " % i + "% ] ")
+    sys.stdout.flush()
 
 def wipe_partition(comm, disk_fd, part_offset, part_size):
     sector_start = part_offset // BLOCK_SIZE

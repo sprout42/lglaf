@@ -5,7 +5,7 @@
 # Copyright (C) 2015 Peter Wu <peter@lekensteyn.nl>
 # Licensed under the MIT license <http://opensource.org/licenses/MIT>.
 
-from __future__ import print_function
+from __future__ import print_function,division
 from collections import OrderedDict
 from contextlib import closing, contextmanager
 import argparse, logging, os, struct, sys

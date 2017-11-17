@@ -249,8 +249,7 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
 def print_progress(i, current_val, max_val):
     current_val = int(current_val / 1024)
     max_val = int(max_val / 1024)
-    print('%i:%i:%i' % (i, current_val, max_val))
-    sys.stdout.flush()
+    print('%i:%i:%i' % (i, current_val, max_val),flush=True)
 
 def print_human_progress(i, current_val, max_val):
     current_val = int(current_val / 1024)

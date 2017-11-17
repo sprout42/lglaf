@@ -186,7 +186,7 @@ def dump_partition(comm, disk_fd, local_path, part_offset, part_size):
             read_offset += chunksize
         _logger.info("Wrote %d bytes to %s", part_size, local_path)
 
-def write_partition(comm, disk_fd, local_path, part_offset, part_size):
+def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
     write_offset = BLOCK_SIZE * (part_offset // BLOCK_SIZE)
     end_offset = part_offset + part_size
     # TODO support unaligned writes via read/modify/write
@@ -296,7 +296,10 @@ def main():
             if args.dump:
                 dump_partition(comm, disk_fd, args.dump, part_offset, part_size)
             elif args.restore:
-                write_partition(comm, disk_fd, args.restore, part_offset, part_size)
+                if not args.batch:
+                    write_partition(comm, disk_fd, args.restore, part_offset, part_size, False)
+                else:
+                    write_partition(comm, disk_fd, args.restore, part_offset, part_size, True)
             elif args.wipe:
                 wipe_partition(comm, disk_fd, part_offset, part_size)
 

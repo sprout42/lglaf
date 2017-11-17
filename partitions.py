@@ -197,7 +197,10 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
     assert part_offset >= 34 * 512, "Will not allow overwriting GPT scheme"
 
     # ensure to TRIM the partition first
-    wipe_partition(comm, disk_fd, part_offset, part_size)
+    if not batch:
+        wipe_partition(comm, disk_fd, part_offset, part_size, False)
+    else:
+        wipe_partition(comm, disk_fd, part_offset, part_size, True)
 
     with open_local_readable(local_path) as f:
         try:
@@ -258,7 +261,7 @@ def print_human_progress(i, current_val, max_val):
     sys.stdout.write("\r [ %d " % i + "% ] ")
     sys.stdout.flush()
 
-def wipe_partition(comm, disk_fd, part_offset, part_size):
+def wipe_partition(comm, disk_fd, part_offset, part_size, batch):
     sector_start = part_offset // BLOCK_SIZE
     sector_count = part_size // BLOCK_SIZE
 
@@ -268,8 +271,11 @@ def wipe_partition(comm, disk_fd, part_offset, part_size):
     assert 0 < sector_count < 1024**3, "Invalid sector count %d" % sector_count
 
     laf_erase(comm, disk_fd, sector_start, sector_count)
-    _logger.info("Done with TRIM from sector %d, count %d (%s)",
+    if not batch:
+        _logger.info("Done with TRIM from sector %d, count %d (%s)",
             sector_start, sector_count, human_readable(part_size))
+    else:
+        print("TRIM ok:", sector_start, sector_count, human_readable(part_size))
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--debug", action='store_true', help="Enable debug messages")
@@ -333,7 +339,10 @@ def main():
                 else:
                     write_partition(comm, disk_fd, args.restore, part_offset, part_size, True)
             elif args.wipe:
-                wipe_partition(comm, disk_fd, part_offset, part_size)
+                if not args.batch:
+                    wipe_partition(comm, disk_fd, part_offset, part_size, False)
+                else:
+                    wipe_partition(comm, disk_fd, part_offset, part_size, True)
 
 if __name__ == '__main__':
     try:

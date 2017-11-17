@@ -219,8 +219,9 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
         written = 0
         old_pos = -1
         position = 0
+        read_size = 1048576 # 1 MB
         while write_offset < end_offset:
-            chunksize = min(end_offset - write_offset, BLOCK_SIZE * MAX_BLOCK_SIZE)
+            chunksize = min(end_offset - write_offset, read_size)
             data = f.read(chunksize)
             if not data:
                 break # End of file

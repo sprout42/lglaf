@@ -160,6 +160,7 @@ def dump_partition(comm, disk_fd, local_path, part_offset, part_size):
         _logger.info("Wrote %d bytes to %s", part_size, local_path)
 
 def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
+    READ_CHUNK = 16 * 1024   # 16 KB
     write_offset = BLOCK_SIZE * (part_offset // BLOCK_SIZE)
     end_offset = part_offset + part_size
     # TODO support unaligned writes via read/modify/write
@@ -176,36 +177,33 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
         wipe_partition(comm, disk_fd, part_offset, part_size, True)
 
     with open_local_readable(local_path) as f:
-        try:
-            length = f.seek(0, 2)
-        except OSError:
-            # Will try to write up to the end of the file.
-            _logger.debug("File %s is not seekable, length is unknown",
-                    local_path)
-        else:
-            # Restore position and check if file is small enough
-            f.seek(0)
-            if length > part_size:
-                raise RuntimeError("File size %d is larger than partition "
-                        "size %d" % (length, part_size))
-            # Some special bytes report 0 (such as /dev/zero)
-            if length > 0:
-                _logger.debug("Will write %d bytes", length)
+        f.seek(0, os.SEEK_END)
+        length = f.tell()
+        f.seek(0, os.SEEK_SET)
+        if length > part_size:
+            raise RuntimeError("File size %d is larger than partition size %d" % (length, part_size))
 
         written = 0
         old_pos = -1
-        read_size = 1048576 # 1 MB
-        while write_offset < end_offset:
-            chunksize = min(end_offset - write_offset, read_size)
-            data = f.read(chunksize)
+        while written < length:
+            written_chunk = 0
+            read_chunk = min(length - written, READ_CHUNK)
+            data = f.read(read_chunk)
+
             if not data:
                 break # End of file
-            laf_write(comm, disk_fd, write_offset // BLOCK_SIZE, data)
-            written += len(data)
+
+            while written_chunk < read_chunk:
+              chunksize = min(end_offset - write_offset, BLOCK_SIZE * MAX_BLOCK_SIZE)
+              written += chunksize
+              write_offset += chunksize
+              written_chunk += chunksize
+
+            laf_write(comm, disk_fd, write_offset // BLOCK_SIZE, data[written_chunk:written_chunk+chunksize])
 
             curr_progress = int(written / part_size * 100)
-            _logger.debug("written: %i, part_size: %i , curr_progress: %i, write_offset: %i, end_offset: %i, part_offset: %i",
-                           written, part_size, curr_progress, write_offset, end_offset, part_offset)
+            _logger.debug("written: %i, written_chunk: %i, read_chunk: %i, part_size: %i , curr_progress: %i, write_offset: %i, end_offset: %i, part_offset: %i",
+                           written, written_chunk, read_chunk, part_size, curr_progress, write_offset, end_offset, part_offset)
 
             if written <= part_size:
                 _logger.debug("%i <= %i", written, part_size)
@@ -215,9 +213,6 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
                 else:
                   print_progress(curr_progress, written, part_size)
 
-            write_offset += chunksize
-            if len(data) != chunksize:
-                break # Short read, end of file
         if not batch:
             _logger.info("Done after writing %d bytes from %s", written, local_path)
 

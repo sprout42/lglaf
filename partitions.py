@@ -221,7 +221,6 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
 
         written = 0
         old_pos = -1
-        position = 0
         read_size = 1048576 # 1 MB
         while write_offset < end_offset:
             chunksize = min(end_offset - write_offset, read_size)
@@ -232,10 +231,10 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
             written += len(data)
 
             curr_progress = int(written / part_size * 100)
-            curr_progress_c = int(curr_progress / 1024 / 1024)
-            _logger.debug("%i, %i , %i, %i",written,part_size,curr_progress,curr_progress_c)
+            _logger.debug("written: %i, part_size: %i , curr_progress: %i, write_offset: %i, end_offset: %i, part_offset: %i",
+                           written, part_size, curr_progress, write_offset, end_offset, part_offset)
 
-            if position <= part_size:
+            if written <= part_size:
                 _logger.debug("%i <= %i", written, part_size)
                 old_pos = curr_progress
                 if not batch:

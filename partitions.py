@@ -46,7 +46,10 @@ def get_partitions(comm, fd_num):
     return info
 
 def find_partition(diskinfo, query):
-    result = [p for p in diskinfo.gpt.partitions if p.name == query]
+    if isinstance(query, str):
+        result = [p for p in diskinfo.gpt.partitions if p.name == query]
+    elif isinstance(query, int):
+        result = [p for p in diskinfo.gpt.partitions if p.index == query]
     if not len(result):
         raise ValueError("Partition not found: %s" % query)
     return result[0]
@@ -107,7 +110,7 @@ def open_local_readable(path):
         return open(path, "rb")
 
 def get_partition_info_string(part):
-    info = '#   Flags From(#s)   To(#s)     GUID/UID                             Type/Name'
+    info = '#   Flags From(#s)   To(#s)     GUID/UID                             Type/Name\n'
     info += ('{n: <3} {flags: ^5} {from_s: <10} {to_s: <10} {guid} {type}\n' + ' ' * 32 + '{uid} {name}').format(
                 n=part.index, flags=part.flags, from_s=part.first_lba, to_s=part.last_lba, guid=part.guid,
                 type=part.type, uid=part.uid, name=part.name)
@@ -275,6 +278,9 @@ def main():
         " --list / --dump / --restore / --wipe")
     if not args.partition and (args.dump or args.restore or args.wipe):
         parser.error("Please specify a partition")
+
+    if args.partition.isdigit():
+        args.partition = int(args.partition)
 
     comm = lglaf.autodetect_device()
     with closing(comm):

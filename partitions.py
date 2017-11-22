@@ -279,7 +279,7 @@ def main():
     if not args.partition and (args.dump or args.restore or args.wipe):
         parser.error("Please specify a partition")
 
-    if args.partition.isdigit():
+    if args.partition and args.partition.isdigit():
         args.partition = int(args.partition)
 
     comm = lglaf.autodetect_device()

@@ -6,7 +6,7 @@
 # Licensed under the MIT license <http://opensource.org/licenses/MIT>.
 
 from contextlib import closing, contextmanager
-import argparse, logging, os, struct, sys
+import argparse, logging, os, struct, sys, re
 import lglaf
 
 _logger = logging.getLogger("dump-file")
@@ -15,13 +15,16 @@ def read_uint32(data, offset):
     return struct.unpack_from('<I', data, offset)[0]
 
 def get_file_size(comm, path):
-    shell_command = b'stat -t ' + path.encode('utf8') + b'\0'
+    shell_command = b'ls -l ' + path.encode('utf8') + b'\0'
     output = comm.call(lglaf.make_request(b'EXEC', body=shell_command))[1]
     output = output.decode('utf8')
-    if not output.startswith(path + ' '):
+    # Replace multiple whitespaces with single ws
+    # Example input: "-rwxr-x--- root     root       496888 1970-01-01 00:00 lafd"
+    output = re.sub(' +', ' ', output)
+    if not len(output):
         _logger.debug("Output: %r", output)
         raise RuntimeError("Cannot get filesize for %s" % path)
-    size_bytes = output.lstrip(path + ' ').split()[0]
+    size_bytes = output.split(' ')[3]
     return int(size_bytes)
 
 @contextmanager

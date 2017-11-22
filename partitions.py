@@ -8,10 +8,13 @@
 from __future__ import print_function,division
 from collections import OrderedDict
 from contextlib import closing, contextmanager
-import argparse, logging, os, struct, sys
+import argparse, logging, os, io, struct, sys
 import lglaf
+import gpt
 
 _logger = logging.getLogger("partitions")
+
+GPT_LBA_LEN = 34
 
 def human_readable(sz):
     suffixes = ('', 'Ki', 'Mi', 'Gi', 'Ti')
@@ -23,49 +26,30 @@ def human_readable(sz):
 def read_uint32(data, offset):
     return struct.unpack_from('<I', data, offset)[0]
 
-def cat_file(comm, path):
-    shell_command = b'cat ' + path.encode('ascii') + b'\0'
-    return comm.call(lglaf.make_request(b'EXEC', body=shell_command))[1]
-
-def get_partitions(comm):
+def get_partitions(comm, fd_num):
     """
     Maps partition labels (such as "recovery") to block devices (such as
     "mmcblk0p0"), sorted by the number in the block device.
     """
-    name_cmd = 'ls -l /dev/block/bootdevice/by-name'
-    output = comm.call(lglaf.make_exec_request(name_cmd))[1]
-    output = output.strip().decode('ascii')
-    names = []
-    for line in output.strip().split("\n"):
-        if(line.split()[0] == 'total'):
-            continue
-        label, arrow, path = line.split()[-3:]
-        assert arrow == '->', "Expected arrow in ls output"
-        blockdev = path.split('/')[-1]
-        if not blockdev.startswith('mmcblk0p'):
-            continue
-        names.append((label, blockdev))
-    names.sort(key=lambda x: int(x[1].lstrip("mmcblk0p")))
-    return OrderedDict(names)
+    read_offset = 0
+    end_offset = GPT_LBA_LEN * BLOCK_SIZE
 
-def find_partition(partitions, query):
-    try: query = "mmcblk0p%d" % int(query)
-    except ValueError: pass
-    for part_label, part_name in partitions.items():
-        if query in (part_label, part_name):
-            return part_label, part_name
-    raise ValueError("Partition not found: %s" % query)
+    table_data = b''
+    while read_offset < end_offset:
+        chunksize = min(end_offset - read_offset, BLOCK_SIZE * MAX_BLOCK_SIZE)
+        data = laf_read(comm, fd_num, read_offset // BLOCK_SIZE, chunksize)
+        table_data += data
+        read_offset += chunksize
 
-def partition_info(comm, part_name):
-    """Retrieves the partition size and offset within the disk (in bytes)."""
-    disk_path = "/sys/class/block/%s" % part_name
-    try:
-        # Convert sector sizes to bytes.
-        output = cat_file(comm, '{0}/start {0}/size'.format(disk_path)).split()
-        start, size = (512 * int(x) for x in output)
-    except ValueError:
-        raise RuntimeError("Partition %s not found" % part_name)
-    return start, size
+    with io.BytesIO(table_data) as table_fd:
+        info = gpt.get_disk_partitions_info(table_fd)
+    return info
+
+def find_partition(diskinfo, query):
+    result = [p for p in diskinfo.gpt.partitions if p.name == query]
+    if not len(result):
+        raise ValueError("Partition not found: %s" % query)
+    return result[0]
 
 @contextmanager
 def laf_open_disk(comm):
@@ -122,37 +106,23 @@ def open_local_readable(path):
     else:
         return open(path, "rb")
 
-def list_partitions(comm, part_filter=None):
-    partitions = get_partitions(comm)
+def get_partition_info_string(part):
+    info = '#   Flags From(#s)   To(#s)     GUID/UID                             Type/Name'
+    info += ('{n: <3} {flags: ^5} {from_s: <10} {to_s: <10} {guid} {type}\n' + ' ' * 32 + '{uid} {name}').format(
+                n=part.index, flags=part.flags, from_s=part.first_lba, to_s=part.last_lba, guid=part.guid,
+                type=part.type, uid=part.uid, name=part.name)
+    return info
+
+def list_partitions(comm, fd_num, part_filter=None):
+    diskinfo = get_partitions(comm, fd_num)
     if part_filter:
-        try: part_filter = find_partition(partitions, part_filter)[1]
-        except ValueError: pass # No results is OK.
-
-    print("\nNumber            Label     StartSector     Bytes   SectorCount       Size")
-    print("------------------------------------------------------------------------------")
-    for part_label, part_name in partitions.items():
-        if part_filter and part_filter != part_name:
-            continue
-        part_num = int(part_name.lstrip('mmcblk0p'))
-        part_offset, part_size = partition_info(comm, part_name)
-        sector_count = part_size // BLOCK_SIZE
-        print("%4d    %16s  %10d  %12d %10d %15s" % (part_num, part_label, part_offset / BLOCK_SIZE, part_size,sector_count, human_readable(part_size)))
-
-def batch_list_partitions(comm, part_filter=None):
-    partitions = get_partitions(comm)
-    if part_filter:
-        try: part_filter = find_partition(partitions, part_filter)[1]
-        except ValueError: pass # No results is OK.
-
-    print("Number,Label,StartSector,Size,SectorCount,HumanSize")
-    for part_label, part_name in partitions.items():
-        if part_filter and part_filter != part_name:
-            continue
-        part_num = int(part_name.lstrip('mmcblk0p'))
-        part_offset, part_size = partition_info(comm, part_name)
-        sector_count = part_size // BLOCK_SIZE
-        print("%d,%s,%d,%d,%d,%s" % (part_num, part_label, part_offset / BLOCK_SIZE, part_size,sector_count, human_readable(part_size)))
-
+        try:
+            part = find_partition(diskinfo, part_filter)
+            print(get_partition_info_string(part))
+        except ValueError as e:
+            print('Error: %s' % e)
+    else:
+        gpt.show_disk_partitions_info(diskinfo)
 
 # On Linux, one bulk read returns at most 16 KiB. 32 bytes are part of the first
 # header, so remove one block size (512 bytes) to stay within that margin.
@@ -223,7 +193,7 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
         old_pos = -1
         read_size = 1048576 # 1 MB
         while write_offset < end_offset:
-            chunksize = min(end_offset - write_offset, read_size)
+            chunksize = min(end_offset - write_offset, BLOCK_SIZE * MAX_BLOCK_SIZE)
             data = f.read(chunksize)
             if not data:
                 break # End of file
@@ -312,23 +282,23 @@ def main():
         if not args.skip_hello:
             lglaf.try_hello(comm)
 
-        if args.list:
-            if not args.batch:
-                list_partitions(comm, args.partition)
-            else:
-                batch_list_partitions(comm, args.partition)
-            return
-
-        partitions = get_partitions(comm)
-        try:
-            part_label, part_name = find_partition(partitions, args.partition)
-        except ValueError as e:
-            parser.error(e)
-
-        part_offset, part_size = partition_info(comm, part_name)
-        _logger.debug("Partition %s (%s) at offset %d (%#x) size %d (%#x)",
-                part_label, part_name, part_offset, part_offset, part_size, part_size)
         with laf_open_disk(comm) as disk_fd:
+            if args.list:
+                list_partitions(comm, disk_fd, args.partition)
+                return
+
+            diskinfo = get_partitions(comm, disk_fd)
+            try:
+                part = find_partition(diskinfo, args.partition)
+            except ValueError as e:
+                parser.error(e)
+
+            info = get_partition_info_string(part)
+            _logger.debug(info)
+
+            part_offset = part.first_lba * BLOCK_SIZE
+            part_size = (part.last_lba - part.first_lba) * BLOCK_SIZE
+
             _logger.debug("Opened fd %d for disk", disk_fd)
             if args.dump:
                 dump_partition(comm, disk_fd, args.dump, part_offset, part_size)

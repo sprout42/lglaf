@@ -7,8 +7,7 @@
 
 from __future__ import print_function
 from contextlib import closing
-from Crypto.Cipher import AES
-import argparse, logging, re, struct, sys
+import argparse, logging, re, struct, sys, binascii
 
 # Enhanced prompt with history
 try: import readline
@@ -30,6 +29,15 @@ except: pass
 if '\0' == b'\0': int_as_byte = chr
 else: int_as_byte = lambda x: bytes([x])
 
+# laf crypto for KILO challenge/response
+try:
+    import laf_crypto
+except ImportError:
+    _logger.warning("LAF Crypto failed to import!")
+    pass
+
+# Use Manufacturer key for KILO challenge/response
+USE_MFG_KEY = False
 
 laf_error_codes = {
     0x80000000: "FAILED",
@@ -326,6 +334,24 @@ class USBCommunication(Communication):
     def close(self):
         usb.util.dispose_resources(self.usbdev)
 
+def challenge_response(comm, mode):
+    request_kilo = make_request(b'KILO', args=[b'CENT', b'\0\0\0\0', b'\0\0\0\0', b'\0\0\0\0'])
+    kilo_header, kilo_response = comm.call(request_kilo)
+    kilo_challenge = kilo_header[8:12]
+    _logger.debug("Challenge: %s" % binascii.hexlify(kilo_challenge))
+    if USE_MFG_KEY:
+        key = b'lgowvqnltpvtgogwswqn~n~mtjjjqxro'
+    else:
+        key = b'qndiakxxuiemdklseqid~a~niq,zjuxl'
+    kilo_response = laf_crypto.encrypt_kilo_challenge(key, kilo_challenge)
+    _logger.debug("Response: %s" % binascii.hexlify(kilo_response))
+    mode_bytes = struct.pack('<I', mode)
+    kilo_metr_request = make_request(b'KILO', args=[b'METR', b'\0\0\0\0', mode_bytes, b'\0\0\0\0'],
+                                     body=bytes(kilo_response))
+    metr_header, metr_response = comm.call(kilo_metr_request)
+    _logger.debug("KILO METR Response -> Header: %s, Body: %s" % (
+        binascii.hexlify(metr_header), binascii.hexlify(metr_response)))
+
 def try_hello(comm):
     """
     Tests whether the device speaks the expected protocol. If desynchronization
@@ -423,48 +449,12 @@ def command_to_payload(command):
 parser = argparse.ArgumentParser(description='LG LAF Download Mode utility')
 parser.add_argument("--skip-hello", action="store_true",
         help="Immediately send commands, skip HELO message")
+parser.add_argument("--cr", action="store_true",
+        help="Do initial challenge response (KILO CENT/METR)")
 parser.add_argument("-c", "--command", help='Shell command to execute')
 parser.add_argument("--serial", metavar="PATH", dest="serial_path",
         help="Path to serial device (e.g. COM4).")
 parser.add_argument("--debug", action='store_true', help="Enable debug messages")
-parser.add_argument("--unlock", action="store_true", help="Unlock LAF")
-
-def key_transform(old_key):
-    new_key = ''
-    for x in range(32,0,-1):
-	new_key += chr(ord(old_key[x-1]) - (x % 0x0C))
-    return new_key
-
-def key_xoring(key2_t, kilo_challenge):
-    key2_t_xor = ''
-    i = 0
-    while i <= 28:
-        key2_t_xor += chr(ord(key2_t[i]) ^ ord(kilo_challenge[3]))
-	key2_t_xor += chr(ord(key2_t[i+1]) ^ ord(kilo_challenge[2]))
-	key2_t_xor += chr(ord(key2_t[i+2]) ^ ord(kilo_challenge[1]))
-	key2_t_xor += chr(ord(key2_t[i+3]) ^ ord(kilo_challenge[0]))
-	i = i + 4
-    return key2_t_xor
-
-def do_aes_encrypt(key2_t_xor):
-    plaintext = b''
-    for k in range(0,16):
-        plaintext += chr(k)
-    obj = AES.new(key2_t_xor, AES.MODE_ECB)
-    return obj.encrypt(plaintext)
-
-def do_challenge_response(comm):
-    request_kilo = make_request(b'KILO', args=[b'CENT', b'\0\0\0\0', b'\0\0\0\0', b'\0\0\0\0'])
-    kilo_header, kilo_response = comm.call(request_kilo)
-    kilo_challenge = kilo_header[8:12]
-    chalstring = ":".join("{:02x}".format(ord(k)) for k in kilo_challenge)
-    _logger.debug("Challenge: %s" %chalstring)
-    key2 = 'qndiakxxuiemdklseqid~a~niq,zjuxl' # if this doesnt work try 'lgowvqnltpvtgogwswqn~n~mtjjjqxro'
-    kilo_response = do_aes_encrypt(key_xoring(key_transform(key2), kilo_challenge))
-    respstring = ":".join("{:02x}".format(ord(m)) for m in kilo_response)
-    _logger.debug("Response: %s" %respstring)
-    request_kilo_metr =  make_request(b'KILO', args=[b'METR', b'\0\0\0\0', b'\x02\0\0\0', b'\0\0\0\0'], body=bytes(kilo_response))
-    metr_header, metr_response = comm.call(request_kilo_metr)
 
 def main():
     args = parser.parse_args()
@@ -481,8 +471,11 @@ def main():
         comm = autodetect_device()
 
     with closing(comm):
-	if args.unlock:
-            do_challenge_response(comm)
+        if args.cr:
+            # Mode 2 seems standard, will maybe
+            # change in other protocol versions
+            _logger.debug("Doing KILO challenge response")
+            challenge_response(comm, mode=2)
         if not args.skip_hello:
             try_hello(comm)
             _logger.debug("Hello done, proceeding with commands")

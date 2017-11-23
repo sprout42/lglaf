@@ -194,7 +194,7 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
 
         written = 0
         old_pos = -1
-        read_size = 1048576 # 1 MB
+        read_size = 1 * 1024 * 1024  # 1 MB (anything higher will have 0 effect but this speeds up a bit)
         while write_offset < end_offset:
             chunksize = min(end_offset - write_offset, read_size)
             data = f.read(chunksize)

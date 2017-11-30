@@ -205,8 +205,8 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
                 open_header = comm.call(open_cmd)[0]
                 fd_num = read_uint32(open_header, 4)
                 try:
-                    fd_disk = fd_num
-                    _logger.debug("Opened new fd: %i", fd_disk)
+                    disk_fd = fd_num
+                    _logger.debug("Opened new fd: %i", disk_fd)
                 finally:
                     close_cmd = lglaf.make_request(b'CLSE', args=[fd_num])
                     #comm.call(close_cmd)

@@ -195,7 +195,21 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
         written = 0
         old_pos = -1
         read_size = 1048576  # 1 MB (anything higher will have 0 effect but this speeds up a bit)
+        max_fd_size = 100 * 1024 * 1024 # maximal size for disk_fd before open another one
+        cur_fd_size = 0
+
         while write_offset < end_offset:
+            if cur_fd_size >= max_fd_size:
+                cur_fd_size = 0
+                open_cmd = lglaf.make_request(b'OPEN', body=b'\0')
+                open_header = comm.call(open_cmd)[0]
+                fd_num = read_uint32(open_header, 4)
+                try:
+                    fd_disk = fd_num
+                    _logger.debug("Opened new fd: %i", fd_disk)
+                finally:
+                    close_cmd = lglaf.make_request(b'CLSE', args=[fd_num])
+                    #comm.call(close_cmd)
             chunksize = min(end_offset - write_offset, read_size)
             data = f.read(chunksize)
             if not data:
@@ -204,8 +218,8 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
             written += len(data)
 
             curr_progress = int(written / part_size * 100)
-            _logger.debug("written: %i, part_size: %i , curr_progress: %i, write_offset: %i, end_offset: %i, part_offset: %i",
-                           written, part_size, curr_progress, write_offset, end_offset, part_offset)
+            _logger.debug("disk_fd: %i, cur_fd_size: %i, written: %i, part_size: %i , curr_progress: %i, write_offset: %i, end_offset: %i, part_offset: %i",
+                           disk_fd, cur_fd_size, written, part_size, curr_progress, write_offset, end_offset, part_offset)
 
             if written <= part_size:
                 _logger.debug("%i <= %i", written, part_size)
@@ -218,6 +232,7 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
             write_offset += chunksize
             if len(data) != chunksize:
                 break # Short read, end of file
+            cur_fd_size += len(data)
         if not batch:
             _logger.info("Done after writing %d bytes from %s", written, local_path)
 

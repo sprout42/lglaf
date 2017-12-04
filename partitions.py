@@ -195,7 +195,7 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
         written = 0
         old_pos = -1
         read_size = 1048576  # 1 MB (anything higher will have 0 effect but this speeds up a bit)
-        max_fd_size = 100 * 1024 * 1024 # maximal size for disk_fd before open another one
+        max_fd_size = 150 * 1024 * 1024 # maximal size for disk_fd before closing and re-opening it (needed for newer LAFs on BIG partition restore)
         cur_fd_size = 0
 
         while write_offset < end_offset:

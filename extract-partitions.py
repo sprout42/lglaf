@@ -66,5 +66,7 @@ def main():
             _logger.debug("Opened fd %d for disk", disk_fd)
             dump_partitions(comm, disk_fd, args.outdir, args.max_size * 1024)
 
+    _logger.info("All finished!")
+
 if __name__ == '__main__':
     main()

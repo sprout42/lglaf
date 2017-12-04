@@ -56,6 +56,8 @@ def find_partition(diskinfo, query):
 
 @contextmanager
 def laf_open_disk(comm):
+    import auth
+    auth.do_challenge_response(comm)
     # Open whole disk in read/write mode
     open_cmd = lglaf.make_request(b'OPEN', body=b'\0')
     open_header = comm.call(open_cmd)[0]

@@ -38,6 +38,8 @@ except ImportError:
 
 # Use Manufacturer key for KILO challenge/response
 USE_MFG_KEY = False
+# HELO command always sends BASE Protocol version
+BASE_PROTOCOL_VERSION = 0x1000001
 
 laf_error_codes = {
     0x80000000: "FAILED",
@@ -178,6 +180,18 @@ def make_request(cmd, args=[], body=b''):
     set_header(0x18, crc16(header))
     return bytes(header)
 
+
+def make_hdlc_request(body):
+    assert isinstance(body, bytes), "body must be bytes"
+    packet = bytearray(len(body) + 3)
+    packet[0:] = body
+    # Add CRC16 checksum (as uint16!)
+    packet[len(body):] = struct.pack('<H', crc16(body))
+    # Add terminator byte
+    packet[-1:] = b'\x7F'
+    return bytes(packet)
+
+
 def validate_message(payload, ignore_crc=False):
     if len(payload) < 0x20:
         raise RuntimeError("Invalid header length: %d" % len(payload))
@@ -213,6 +227,7 @@ def make_exec_request(shell_command, rawshell):
 class Communication(object):
     def __init__(self):
         self.read_buffer = b''
+        self.protocol_version = 0
     def read(self, n, timeout=None):
         """Reads exactly n bytes."""
         need = n - len(self.read_buffer)
@@ -365,7 +380,8 @@ def try_hello(comm):
     # and otherwise something is wrong.
     HELLO_READ_TIMEOUT = 5000
 
-    hello_request = make_request(b'HELO', args=[b'\1\0\0\1'])
+    hello_proto_version = struct.pack("<I", BASE_PROTOCOL_VERSION)
+    hello_request = make_request(b'HELO', args=[hello_proto_version])
     comm.write(hello_request)
     data = comm.read(0x20, timeout=HELLO_READ_TIMEOUT)
     if data[0:4] != b'HELO':
@@ -381,7 +397,8 @@ def try_hello(comm):
             data = comm.read(0x20, timeout=HELLO_READ_TIMEOUT)
         # Just to be sure, send another HELO request.
         comm.call(hello_request)
-
+    # Assign received protocol version
+    comm.protocol_version = struct.unpack_from('<I', data, 0x4)[0]
 
 def detect_serial_path():
     try:
@@ -451,13 +468,12 @@ def command_to_payload(command, rawshell):
     return make_request(command, args, body)
 
 parser = argparse.ArgumentParser(description='LG LAF Download Mode utility')
-parser.add_argument("--skip-hello", action="store_true",
-        help="Immediately send commands, skip HELO message")
 parser.add_argument("--cr", action="store_true",
         help="Do initial challenge response (KILO CENT/METR)")
 parser.add_argument('--rawshell', action="store_true",
         help="Execute shell commands as-is, needed on recent devices. "
              "CAUTION: stderr output is not redirected!")
+
 parser.add_argument("-c", "--command", help='Shell command to execute')
 parser.add_argument("--serial", metavar="PATH", dest="serial_path",
         help="Path to serial device (e.g. COM4).")
@@ -478,17 +494,21 @@ def main():
         comm = autodetect_device()
 
     with closing(comm):
-        if args.cr:
-            # Mode 2 seems standard, will maybe
-            # change in other protocol versions
-            _logger.debug("Doing KILO challenge response")
-            challenge_response(comm, mode=2)
-        if not args.skip_hello:
-            try_hello(comm)
-            _logger.debug("Hello done, proceeding with commands")
+        try_hello(comm)
+        _logger.debug("Using Protocol version: 0x%x" % comm.protocol_version)
+        _logger.debug("Hello done, proceeding with commands")
         for command in get_commands(args.command):
             try:
-                payload = command_to_payload(command, args.rawshell)
+                use_rawshell = (comm.protocol_version >= 0x1000004)
+                payload = command_to_payload(command, use_rawshell)
+                # Dirty hack
+                if comm.protocol_version >= 0x1000004:
+                    if payload[0:4] == b'UNLK' or \
+                       payload[0:4] == b'OPEN' or \
+                       payload[0:4] == b'EXEC':
+                        challenge_response(comm, 2)
+                    elif payload[0:4] == b'CLSE':
+                        challenge_response(comm, 4)
                 header, response = comm.call(payload)
                 # For debugging, print header
                 if command[0] == '!':

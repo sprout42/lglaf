@@ -54,17 +54,18 @@ def find_partition(diskinfo, query):
 
 @contextmanager
 def laf_open_disk(comm):
-    lglaf.challenge_response(comm, mode=2)
-
     # Open whole disk in read/write mode
     open_cmd = lglaf.make_request(b'OPEN', body=b'\0')
+    if comm.protocol_version >= 0x1000004:
+        lglaf.challenge_response(comm, 2)
     open_header = comm.call(open_cmd)[0]
     fd_num = read_uint32(open_header, 4)
     try:
         yield fd_num
     finally:
-        lglaf.challenge_response(comm, mode=4)
         close_cmd = lglaf.make_request(b'CLSE', args=[fd_num])
+        if comm.protocol_version >= 0x1000004:
+            lglaf.challenge_response(comm, 4)
         comm.call(close_cmd)
 
 def laf_read(comm, fd_num, offset, size):
@@ -319,9 +320,9 @@ def main():
 
     comm = lglaf.autodetect_device()
     with closing(comm):
-        
-        if not args.skip_hello:
-            lglaf.try_hello(comm)
+
+        lglaf.try_hello(comm)
+        _logger.debug("Using Protocol version: 0x%x" % comm.protocol_version)
 
         with laf_open_disk(comm) as disk_fd:
             if args.list:
@@ -335,7 +336,8 @@ def main():
                 parser.error(e)
 
             info = get_partition_info_string(part)
-            _logger.debug(info)
+
+            _logger.debug("%s", info)
 
             part_offset = part.first_lba * BLOCK_SIZE
             part_size = (part.last_lba - (part.first_lba - 1)) * BLOCK_SIZE

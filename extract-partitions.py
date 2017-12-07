@@ -59,8 +59,8 @@ def main():
 
     comm = lglaf.autodetect_device()
     with closing(comm):
-        if not args.skip_hello:
-            lglaf.try_hello(comm)
+        lglaf.try_hello(comm)
+        _logger.debug("Using Protocol version: 0x%x" % comm.protocol_version)
 
         with partitions.laf_open_disk(comm) as disk_fd:
             _logger.debug("Opened fd %d for disk", disk_fd)

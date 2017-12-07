@@ -46,13 +46,11 @@ def get_partitions(comm, fd_num):
     return info
 
 def find_partition(diskinfo, query):
-    if isinstance(query, str):
-        result = [p for p in diskinfo.gpt.partitions if p.name == query]
-    elif isinstance(query, int):
-        result = [p for p in diskinfo.gpt.partitions if p.index == query]
-    if not len(result):
-        raise ValueError("Partition not found: %s" % query)
-    return result[0]
+    partno = int(query) if query.isdigit() else None
+    for part in diskinfo.gpt.partitions:
+        if part.index == partno or part.name == query:
+            return part
+    raise ValueError("Partition not found: %s" % query)
 
 @contextmanager
 def laf_open_disk(comm):
@@ -340,7 +338,9 @@ def main():
             _logger.debug(info)
 
             part_offset = part.first_lba * BLOCK_SIZE
-            part_size = ((part.last_lba + 1) - part.first_lba) * BLOCK_SIZE
+            part_size = (part.last_lba - (part.first_lba - 1)) * BLOCK_SIZE
+
+            _logger.debug("%s", info)
 
             _logger.debug("Opened fd %d for disk", disk_fd)
             if args.dump:

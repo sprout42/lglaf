@@ -56,8 +56,8 @@ def find_partition(diskinfo, query):
 
 @contextmanager
 def laf_open_disk(comm):
-    import auth
-    auth.do_challenge_response(comm)
+    lglaf.challenge_response(comm, mode=2)
+
     # Open whole disk in read/write mode
     open_cmd = lglaf.make_request(b'OPEN', body=b'\0')
     open_header = comm.call(open_cmd)[0]
@@ -161,6 +161,9 @@ def dump_partition(comm, disk_fd, local_path, part_offset, part_size):
             read_offset += chunksize
         _logger.info("Wrote %d bytes to %s", part_size, local_path)
 
+class NoDiskFdException(Exception):
+    pass
+
 def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
     write_offset = BLOCK_SIZE * (part_offset // BLOCK_SIZE)
     end_offset = part_offset + part_size
@@ -198,20 +201,31 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
         old_pos = -1
         read_size = 1048576  # 1 MB (anything higher will have 0 effect but this speeds up a bit)
         max_fd_size = 150 * 1024 * 1024 # maximal size for disk_fd before closing and re-opening it (needed for newer LAFs on BIG partition restore)
+        #max_fd_size = 1 * 1024 * 1024 # maximal size for disk_fd before closing and re-opening it (needed for newer LAFs on BIG partition restore)
         cur_fd_size = 0
 
+        #import auth
+        #auth.do_challenge_response(comm)
+
         while write_offset < end_offset:
+
             if cur_fd_size >= max_fd_size:
                 cur_fd_size = 0
-                open_cmd = lglaf.make_request(b'OPEN', body=b'\0')
-                open_header = comm.call(open_cmd)[0]
-                fd_num = read_uint32(open_header, 4)
+                lglaf.challenge_response(comm, mode=4)
+                close_cmd = lglaf.make_request(b'CLSE', args=[disk_fd])
                 try:
+                    lglaf.challenge_response(comm, mode=2)
+                    open_cmd = lglaf.make_request(b'OPEN', body=b'\0')
+                    open_header = comm.call(open_cmd)[0]
+                    fd_num = read_uint32(open_header, 4)
+                    if not fd_num: raise NoDiskFdException()
+                except:
+                    print("Can not open a new file descriptor! ABORTED!")
+                    sys.exit(3)
+                else:
                     disk_fd = fd_num
-                    _logger.debug("Opened new fd: %i", disk_fd)
-                finally:
-                    close_cmd = lglaf.make_request(b'CLSE', args=[fd_num])
-                    #comm.call(close_cmd)
+                    _logger.debug("Opened a new fd: %i", disk_fd)
+
             chunksize = min(end_offset - write_offset, read_size)
             data = f.read(chunksize)
             if not data:
@@ -235,6 +249,13 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
             if len(data) != chunksize:
                 break # Short read, end of file
             cur_fd_size += len(data)
+
+        #close_cmd = lglaf.make_request(b'CTRL', args=['RSON'])
+        lglaf.challenge_response(comm, mode=4)
+        close_cmd = lglaf.make_request(b'CLSE', args=[disk_fd])
+        comm.call(close_cmd)
+        #close_fds = lglaf.make_request(b'IOCT', args=[0])
+        #comm.call(close_fds)
         if not batch:
             _logger.info("Done after writing %d bytes from %s", written, local_path)
 

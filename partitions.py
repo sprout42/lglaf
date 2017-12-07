@@ -65,8 +65,9 @@ def laf_open_disk(comm):
     try:
         yield fd_num
     finally:
+        lglaf.challenge_response(comm, mode=4)
         close_cmd = lglaf.make_request(b'CLSE', args=[fd_num])
-        #comm.call(close_cmd)
+        comm.call(close_cmd)
 
 def laf_read(comm, fd_num, offset, size):
     """Read size bytes at the given block offset."""

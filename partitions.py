@@ -212,7 +212,8 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
             if cur_fd_size >= max_fd_size:
                 cur_fd_size = 0
                 lglaf.challenge_response(comm, mode=4)
-                close_cmd = lglaf.make_request(b'CLSE', args=[disk_fd])
+                limit_close_cmd = lglaf.make_request(b'CLSE', args=[disk_fd])
+                comm.call(limit_close_cmd)
                 try:
                     lglaf.challenge_response(comm, mode=2)
                     open_cmd = lglaf.make_request(b'OPEN', body=b'\0')
@@ -250,12 +251,9 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
                 break # Short read, end of file
             cur_fd_size += len(data)
 
-        #close_cmd = lglaf.make_request(b'CTRL', args=['RSON'])
         lglaf.challenge_response(comm, mode=4)
-        close_cmd = lglaf.make_request(b'CLSE', args=[disk_fd])
-        comm.call(close_cmd)
-        #close_fds = lglaf.make_request(b'IOCT', args=[0])
-        #comm.call(close_fds)
+        end_close_cmd = lglaf.make_request(b'CLSE', args=[disk_fd])
+        comm.call(end_close_cmd)
         if not batch:
             _logger.info("Done after writing %d bytes from %s", written, local_path)
 

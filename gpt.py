@@ -32,6 +32,9 @@ from collections import namedtuple
 import struct
 import sys
 import uuid
+import logging
+_logger = logging.getLogger("partitions")
+
 #from fcntl import ioctl
 
 # http://en.wikipedia.org/wiki/Master_boot_record#Sector_layout
@@ -431,7 +434,7 @@ def show_disk_partitions_info(diskOrInfo, batch=False):
   if info.gpt:
     gpt = info.gpt
     if batch:
-      print('Name:Partition(#):From(#s):To(#s):UID')
+      _logger.debug("Name:Partition(#):From(#s):To(#s):UID")
     else:
       print('GPT Header')
       print('Disk GUID: {0}'.format(gpt.disk_guid))

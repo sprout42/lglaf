@@ -118,7 +118,7 @@ def get_partition_info_string(part):
                 type=part.type, uid=part.uid, name=part.name)
     return info
 
-def list_partitions(comm, fd_num, part_filter=None):
+def list_partitions(comm, fd_num, part_filter=None, batch=False):
     diskinfo = get_partitions(comm, fd_num)
     if part_filter:
         try:
@@ -127,7 +127,7 @@ def list_partitions(comm, fd_num, part_filter=None):
         except ValueError as e:
             print('Error: %s' % e)
     else:
-        gpt.show_disk_partitions_info(diskinfo)
+        gpt.show_disk_partitions_info(diskinfo, batch)
 
 # On Linux, one bulk read returns at most 16 KiB. 32 bytes are part of the first
 # header, so remove one block size (512 bytes) to stay within that margin.
@@ -328,7 +328,10 @@ def main():
 
         with laf_open_disk(comm) as disk_fd:
             if args.list:
-                list_partitions(comm, disk_fd, args.partition)
+                if args.batch:
+                    list_partitions(comm, disk_fd, args.partition, True)
+                else:
+                    list_partitions(comm, disk_fd, args.partition, False)
                 return
 
             diskinfo = get_partitions(comm, disk_fd)

@@ -410,7 +410,7 @@ def get_disk_partitions_info(disk):
   check_disk_file(disk)
   return namedtuple('DiskInfo', 'mbr, gpt')(get_mbr_info(disk), get_gpt_info(disk))
 
-def show_disk_partitions_info(diskOrInfo):
+def show_disk_partitions_info(diskOrInfo, batch=False):
   fileUsed = None
   if hasattr(diskOrInfo, 'read'):
     info = get_disk_partitions_info(diskOrInfo)
@@ -419,29 +419,34 @@ def show_disk_partitions_info(diskOrInfo):
 
   if info.mbr:
     mbr = info.mbr
-    print('MBR Header')
-    print('LBA size (sector size): {0}', mbr.lba_size)
-    print('Number of MBR partitions: {0}'.format(len(mbr.partitions)))
-    print('#  Active From(#s)   Size(#s)   Code Type')
-    for part in mbr.partitions:
-      print('{n: <2} {boot: ^6} {from_s: <10} {size_s: <10} {code: ^4X} {type}'.format(n=part.index, boot='*' if part.active else '_', from_s=part.lba, size_s=part.sectors, code=part.type, type=part.type_str))
+    if not batch:
+      print('MBR Header')
+      print('LBA size (sector size): {0}', mbr.lba_size)
+      print('Number of MBR partitions: {0}'.format(len(mbr.partitions)))
+      print('#  Active From(#s)   Size(#s)   Code Type')
+      for part in mbr.partitions:
+        print('{n: <2} {boot: ^6} {from_s: <10} {size_s: <10} {code: ^4X} {type}'.format(n=part.index, boot='*' if part.active else '_', from_s=part.lba, size_s=part.sectors, code=part.type, type=part.type_str))
   else:
     print('No MBR')
-  print('---')
   if info.gpt:
     gpt = info.gpt
-    print('GPT Header')
-    print('Disk GUID: {0}'.format(gpt.disk_guid))
-    print('LBA size (sector size): {0}'.format(gpt.lba_size))
-    print('GPT First LBA: {0}'.format(gpt.current_lba))
-    print('GPT Last  LBA: {0}'.format(gpt.backup_lba))
-    print('Number of GPT partitions: {0}'.format(len(gpt.partitions)))
-    print('#   Flags From(#s)   To(#s)     GUID/UID                             Type/Name')
+    if batch:
+      print('Name:Partition(#):From(#s):To(#s):UID')
+    else:
+      print('GPT Header')
+      print('Disk GUID: {0}'.format(gpt.disk_guid))
+      print('LBA size (sector size): {0}'.format(gpt.lba_size))
+      print('GPT First LBA: {0}'.format(gpt.current_lba))
+      print('GPT Last  LBA: {0}'.format(gpt.backup_lba))
+      print('Number of GPT partitions: {0}'.format(len(gpt.partitions)))
+      print('#   Flags From(#s)   To(#s)     GUID/UID                             Type/Name')
     for part in gpt.partitions:
-      print(('{n: <3} {flags: ^5} {from_s: <10} {to_s: <10} {guid} {type}\n' + ' ' * 32 + '{uid} {name}').format(n=part.index, flags=part.flags, from_s=part.first_lba, to_s=part.last_lba, guid=part.guid, type=part.type, uid=part.uid, name=part.name))
+      if batch:
+        print(('{name}:{n}:{from_s}:{to_s}:{uid}').format(name=part.name, n=part.index, from_s=part.first_lba, to_s=part.last_lba, uid=part.uid))
+      else:
+        print(('{n: <3} {flags: ^5} {from_s: <10} {to_s: <10} {guid} {type}\n' + ' ' * 32 + '{uid} {name}').format(n=part.index, flags=part.flags, from_s=part.first_lba, to_s=part.last_lba, guid=part.guid, type=part.type, uid=part.uid, name=part.name))
   else:
     print('No GPT')
-  print('---')
   if fileUsed:
     fileUsed.close()
 

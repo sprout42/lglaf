@@ -199,13 +199,11 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
 
         written = 0
         old_pos = -1
-        read_size = 1048576  # 1 MB (anything higher will have 0 effect but this speeds up a bit)
+        #read_size = 1048576  # 1 MB (anything higher will have 0 effect but this speeds up a bit)
+        read_size = 16384  # 1 MB (anything higher will have 0 effect but this speeds up a bit)
         max_fd_size = 150 * 1024 * 1024 # maximal size for disk_fd before closing and re-opening it (needed for newer LAFs on BIG partition restore)
         #max_fd_size = 1 * 1024 * 1024 # maximal size for disk_fd before closing and re-opening it (needed for newer LAFs on BIG partition restore)
         cur_fd_size = 0
-
-        #import auth
-        #auth.do_challenge_response(comm)
 
         while write_offset < end_offset:
 
@@ -232,12 +230,13 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
             data = f.read(chunksize)
             if not data:
                 break # End of file
-            laf_write(comm, disk_fd, write_offset // BLOCK_SIZE, data)
+            write_offset_bs = write_offset // BLOCK_SIZE
+            laf_write(comm, disk_fd, write_offset_bs, data)
             written += len(data)
 
             curr_progress = int(written / part_size * 100)
-            _logger.debug("disk_fd: %i, cur_fd_size: %i, written: %i, part_size: %i , curr_progress: %i, write_offset: %i, end_offset: %i, part_offset: %i",
-                           disk_fd, cur_fd_size, written, part_size, curr_progress, write_offset, end_offset, part_offset)
+            _logger.debug("disk_fd: %i, cur_fd_size: %i, written: %i, part_size: %i , curr_progress: %i, write_offset: %i, write_offset_bs: %i, end_offset: %i, part_offset: %i",
+                           disk_fd, cur_fd_size, written, part_size, curr_progress, write_offset, write_offset_bs, end_offset, part_offset)
 
             if written <= part_size:
                 _logger.debug("%i <= %i", written, part_size)
@@ -252,10 +251,10 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
                 break # Short read, end of file
             cur_fd_size += len(data)
 
-        if comm.protocol_version >= 0x1000004:
-            lglaf.challenge_response(comm, mode=4)
-        end_close_cmd = lglaf.make_request(b'CLSE', args=[disk_fd])
-        comm.call(end_close_cmd)
+        #if comm.protocol_version >= 0x1000004:
+        #    lglaf.challenge_response(comm, mode=4)
+        #end_close_cmd = lglaf.make_request(b'CLSE', args=[disk_fd])
+        #comm.call(end_close_cmd)
         if not batch:
             _logger.info("Done after writing %d bytes from %s", written, local_path)
 

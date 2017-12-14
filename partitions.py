@@ -174,13 +174,16 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
     # Sanity check
     assert part_offset >= 34 * 512, "Will not allow overwriting GPT scheme"
 
-    # ensure to TRIM the partition first
-    if not batch:
-        wipe_partition(comm, disk_fd, part_offset, part_size, False)
-    else:
-        wipe_partition(comm, disk_fd, part_offset, part_size, True)
+    # disable RESTORE until newer LAF communication is fixed! this will not work atm!
+    if comm.protocol_version == 0x1000001:
+      # ensure to TRIM the partition first | DISABLED as on newer firmware erasing is possible while writing not (yet)
+      # and unfortunately some devices requires chall/resp even when on 1000001 proto (like the H811 20v)
+      #if not batch:
+      #  wipe_partition(comm, disk_fd, part_offset, part_size, False)
+      #else:
+      #  wipe_partition(comm, disk_fd, part_offset, part_size, True)
 
-    with open_local_readable(local_path) as f:
+      with open_local_readable(local_path) as f:
         try:
             length = f.seek(0, 2)
         except OSError:
@@ -251,12 +254,11 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
                 break # Short read, end of file
             cur_fd_size += len(data)
 
-        #if comm.protocol_version >= 0x1000004:
-        #    lglaf.challenge_response(comm, mode=4)
-        #end_close_cmd = lglaf.make_request(b'CLSE', args=[disk_fd])
-        #comm.call(end_close_cmd)
         if not batch:
             _logger.info("Done after writing %d bytes from %s", written, local_path)
+    else:
+        _logger.error("Your installed firmware does not support writing atm. sorry.")
+
 
 def print_progress(i, current_val, max_val):
     current_val = int(current_val / 1024)

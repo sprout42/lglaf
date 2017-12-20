@@ -40,8 +40,6 @@ except ImportError:
 USE_MFG_KEY = False
 # HELO command always sends BASE Protocol version
 BASE_PROTOCOL_VERSION = 0x1000001
-# set challenge/response to not needed by default (will be autodetected later)
-CR_NEEDED=0
 
 # all product ids which requires challenge response / KILO
 kilo_lg_product_ids = {
@@ -305,8 +303,9 @@ class USBCommunication(Communication):
         _logger.debug("product id in CR list: >%s<", cr_device)
         if cr_device:
             _logger.debug("Device is: %x, %s. Enabling Challenge/Response!", self.usbdev.idProduct, cr_device)
-            global CR_NEEDED
-            CR_NEEDED=1
+            self.CR_NEEDED=1
+        else:
+            self.CR_NEEDED=0
 
         cfg = usb.util.find_descriptor(self.usbdev,
                 custom_match=self._match_configuration)
@@ -512,14 +511,14 @@ def main():
     with closing(comm):
         try_hello(comm)
         _logger.debug("Using Protocol version: 0x%x" % comm.protocol_version)
-        _logger.debug("CR detection: %i" % CR_NEEDED)
+        _logger.debug("CR detection: %i" % comm.CR_NEEDED)
         _logger.debug("Hello done, proceeding with commands")
         for command in get_commands(args.command):
             try:
-                use_rawshell = (comm.protocol_version >= 0x1000004 or CR_NEEDED == 1)
+                use_rawshell = (comm.protocol_version >= 0x1000004 or comm.CR_NEEDED == 1)
                 payload = command_to_payload(command, use_rawshell)
                 # Dirty hack
-                if comm.protocol_version >= 0x1000004 or CR_NEEDED == 1:
+                if comm.protocol_version >= 0x1000004 or comm.CR_NEEDED == 1:
                     if payload[0:4] == b'UNLK' or \
                        payload[0:4] == b'OPEN' or \
                        payload[0:4] == b'EXEC':

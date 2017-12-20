@@ -56,7 +56,7 @@ def find_partition(diskinfo, query):
 def laf_open_disk(comm):
     # Open whole disk in read/write mode
     open_cmd = lglaf.make_request(b'OPEN', body=b'\0')
-    if comm.protocol_version >= 0x1000004 or CR_NEEDED == 1:
+    if comm.protocol_version >= 0x1000004 or comm.CR_NEEDED == 1:
         lglaf.challenge_response(comm, 2)
     open_header = comm.call(open_cmd)[0]
     fd_num = read_uint32(open_header, 4)
@@ -64,7 +64,7 @@ def laf_open_disk(comm):
         yield fd_num
     finally:
         close_cmd = lglaf.make_request(b'CLSE', args=[fd_num])
-        if comm.protocol_version >= 0x1000004 or CR_NEEDED == 1:
+        if comm.protocol_version >= 0x1000004 or comm.CR_NEEDED == 1:
             lglaf.challenge_response(comm, 4)
         comm.call(close_cmd)
 
@@ -212,7 +212,7 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
 
             if cur_fd_size >= max_fd_size:
                 cur_fd_size = 0
-                if comm.protocol_version >= 0x1000004 or CR_NEEDED == 1:
+                if comm.protocol_version >= 0x1000004 or comm.CR_NEEDED == 1:
                     lglaf.challenge_response(comm, mode=4)
                 limit_close_cmd = lglaf.make_request(b'CLSE', args=[disk_fd])
                 comm.call(limit_close_cmd)

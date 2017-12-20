@@ -36,7 +36,7 @@ def laf_open_ro(comm, filename):
     filename = filename.encode('utf8') + b'\0'
     # Open a single file in readonly mode
     open_cmd = lglaf.make_request(b'OPEN', body=filename)
-    if comm.protocol_version >= 0x1000004 or CR_NEEDED == 1:
+    if comm.protocol_version >= 0x1000004 or comm.CR_NEEDED == 1:
         lglaf.challenge_response(comm, 2)
     open_header = comm.call(open_cmd)[0]
     fd_num = read_uint32(open_header, 4)
@@ -44,7 +44,7 @@ def laf_open_ro(comm, filename):
         yield fd_num
     finally:
         close_cmd = lglaf.make_request(b'CLSE', args=[fd_num])
-        if comm.protocol_version >= 0x1000004 or CR_NEEDED == 1:
+        if comm.protocol_version >= 0x1000004 or comm.CR_NEEDED == 1:
             lglaf.challenge_response(comm, 4)
         comm.call(close_cmd)
 

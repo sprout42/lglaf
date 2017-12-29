@@ -11,6 +11,7 @@ from contextlib import closing, contextmanager
 import argparse, logging, os, io, struct, sys
 import lglaf
 import gpt
+import zlib
 
 _logger = logging.getLogger("partitions")
 
@@ -85,10 +86,13 @@ def laf_erase(comm, fd_num, sector_start, sector_count):
     # Ensure that response fd, start and count are sane (match the request)
     assert erase_cmd[4:4+12] == header[4:4+12], "Unexpected erase response"
 
-def laf_write(comm, fd_num, offset, data):
+def laf_write(comm, fd_num, offset, write_mode, zdata):
+#def laf_write(comm, fd_num, offset, data):
     """Write size bytes at the given block offset."""
     #_logger.debug("WRTE(0x%05x, #%d)", offset, len(data)); return
-    write_cmd = lglaf.make_request(b'WRTE', args=[fd_num, offset], body=data)
+    #write_cmd = lglaf.make_request(b'WRTE', args=[fd_num, offset], body=data)
+    write_cmd = lglaf.make_request(b'WRTE', args=[fd_num, offset, 0x00, write_mode], body=zdata)
+    #write_cmd = lglaf.make_request(b'WRTE', args=[fd_num, offset, 0x00, write_mode], body=data)
     header = comm.call(write_cmd)[0]
     # Response offset (in bytes) must match calculated offset
     calc_offset = (offset * 512) & 0xffffffff
@@ -175,7 +179,7 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
     assert part_offset >= 34 * 512, "Will not allow overwriting GPT scheme"
 
     # disable RESTORE until newer LAF communication is fixed! this will not work atm!
-    if comm.protocol_version == 0x1000001:
+    if comm.protocol_version >= 0x1000001:
       # ensure to TRIM the partition first | DISABLED as on newer firmware erasing is possible while writing not (yet)
       # and unfortunately some devices requires chall/resp even when on 1000001 proto (like the H811 20v)
       #if not batch:
@@ -204,9 +208,11 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
         old_pos = -1
         #read_size = 1048576  # 1 MB (anything higher will have 0 effect but this speeds up a bit)
         read_size = 16384  # 1 MB (anything higher will have 0 effect but this speeds up a bit)
-        max_fd_size = 150 * 1024 * 1024 # maximal size for disk_fd before closing and re-opening it (needed for newer LAFs on BIG partition restore)
+        max_fd_size = 15000 * 1024 * 1024 # maximal size for disk_fd before closing and re-opening it (needed for newer LAFs on BIG partition restore)
         #max_fd_size = 1 * 1024 * 1024 # maximal size for disk_fd before closing and re-opening it (needed for newer LAFs on BIG partition restore)
         cur_fd_size = 0
+
+        write_mode = 0x20
 
         while write_offset < end_offset:
 
@@ -231,15 +237,17 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
 
             chunksize = min(end_offset - write_offset, read_size)
             data = f.read(chunksize)
+            zdata = zlib.compress(data)
             if not data:
                 break # End of file
             write_offset_bs = write_offset // BLOCK_SIZE
-            laf_write(comm, disk_fd, write_offset_bs, data)
+            laf_write(comm, disk_fd, write_offset_bs, write_mode, zdata)
+            #laf_write(comm, disk_fd, write_offset_bs, data)
             written += len(data)
 
             curr_progress = int(written / part_size * 100)
-            _logger.debug("disk_fd: %i, cur_fd_size: %i, written: %i, part_size: %i , curr_progress: %i, write_offset: %i, write_offset_bs: %i, end_offset: %i, part_offset: %i",
-                           disk_fd, cur_fd_size, written, part_size, curr_progress, write_offset, write_offset_bs, end_offset, part_offset)
+            _logger.debug("disk_fd: %i, cur_fd_size: %i, written: %i, part_size: %i , curr_progress: %i, write_offset: %i, write_offset_bs: %i, end_offset: %i, part_offset: %i, write_mode: %i",
+                           disk_fd, cur_fd_size, written, part_size, curr_progress, write_offset, write_offset_bs, end_offset, part_offset, write_mode)
 
             if written <= part_size:
                 _logger.debug("%i <= %i", written, part_size)
@@ -250,6 +258,7 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
                   print_progress(curr_progress, written, part_size)
 
             write_offset += chunksize
+            write_mode = 0x00
             if len(data) != chunksize:
                 break # Short read, end of file
             cur_fd_size += len(data)

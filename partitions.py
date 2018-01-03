@@ -87,12 +87,12 @@ def laf_erase(comm, fd_num, sector_start, sector_count):
     assert erase_cmd[4:4+12] == header[4:4+12], "Unexpected erase response"
 
 def laf_write(comm, fd_num, offset, write_mode, zdata):
-#def laf_write(comm, fd_num, offset, data):
     """Write size bytes at the given block offset."""
     #_logger.debug("WRTE(0x%05x, #%d)", offset, len(data)); return
     #write_cmd = lglaf.make_request(b'WRTE', args=[fd_num, offset], body=data)
-    write_cmd = lglaf.make_request(b'WRTE', args=[fd_num, offset, 0x00, write_mode], body=zdata)
+    #write_cmd = lglaf.make_request(b'WRTE', args=[fd_num, offset], body=zdata)
     #write_cmd = lglaf.make_request(b'WRTE', args=[fd_num, offset, 0x00, write_mode], body=data)
+    write_cmd = lglaf.make_request(b'WRTE', args=[fd_num, offset, write_mode], body=zdata)
     header = comm.call(write_cmd)[0]
     # Response offset (in bytes) must match calculated offset
     calc_offset = (offset * 512) & 0xffffffff
@@ -206,13 +206,9 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
 
         written = 0
         old_pos = -1
-        #read_size = 1048576  # 1 MB (anything higher will have 0 effect but this speeds up a bit)
-        read_size = 16384  # 1 MB (anything higher will have 0 effect but this speeds up a bit)
-        max_fd_size = 15000 * 1024 * 1024 # maximal size for disk_fd before closing and re-opening it (needed for newer LAFs on BIG partition restore)
-        #max_fd_size = 1 * 1024 * 1024 # maximal size for disk_fd before closing and re-opening it (needed for newer LAFs on BIG partition restore)
-        cur_fd_size = 0
-
-        write_mode = 0x20
+        read_size = 1048576  # 1 MB (anything higher will have 0 effect but this speeds up a lot)
+        #read_size = 16384   # 16 KB as a usual USB block is
+        write_mode = 0x20    # needed to be send at start of WRTE on some devices
 
         while write_offset < end_offset:
 
@@ -222,8 +218,9 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
             if not data:
                 break # End of file
             write_offset_bs = write_offset // BLOCK_SIZE
-            laf_write(comm, disk_fd, write_offset_bs, write_mode, zdata)
+            #laf_write(comm, disk_fd, write_offset_bs, write_mode, zdata)
             #laf_write(comm, disk_fd, write_offset_bs, data)
+            laf_write(comm, disk_fd, write_offset_bs, write_mode, data)
             written += len(data)
 
             curr_progress = int(written / part_size * 100)

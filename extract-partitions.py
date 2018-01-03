@@ -19,10 +19,11 @@ parser.add_argument("-d", "--outdir", default=".",
 parser.add_argument("--max-size", metavar="kbytes", type=int, default=65535,
         help="Maximum partition size to dump (in KiB) or 0 to dump all (default %(default)d)")
 parser.add_argument("--debug", action='store_true', help="Enable debug messages")
+parser.add_argument("--batch", action='store_true', help="Enable batch mode")
 parser.add_argument("--skip-hello", action="store_true",
         help="Immediately send commands, skip HELO message")
 
-def dump_partitions(comm, disk_fd, outdir, max_size):
+def dump_partitions(comm, disk_fd, outdir, max_size, batch):
     diskinfo = partitions.get_partitions(comm, disk_fd)
     for part in diskinfo.gpt.partitions:
         part_offset = part.first_lba * partitions.BLOCK_SIZE
@@ -30,24 +31,38 @@ def dump_partitions(comm, disk_fd, outdir, max_size):
         part_name = part.name
         part_label = "/dev/mmcblk0p%i" % part.index
         if max_size and part_size > max_size:
-            _logger.info("Ignoring large partition %s (%s) of size %dK",
+            if batch:
+                print("#Ignoring large partition %s (%s) of size %dK" % (part_label, part_name, part_size / 1024))
+            else:
+                _logger.info("Ignoring large partition %s (%s) of size %dK",
                     part_label, part_name, part_size / 1024)
             continue
         out_path = os.path.join(outdir, "%s.bin" % part_name)
         try:
             current_size = os.path.getsize(out_path)
             if current_size > part_size:
-                _logger.warn("%s: unexpected size %dK, larger than %dK",
+                if batch:
+                    print("#%s: unexpected size %dK, larger than %dK" % (out_path, current_size / 1024, part_size / 1024))
+                else:
+                    _logger.warn("%s: unexpected size %dK, larger than %dK",
                         out_path, current_size / 1024, part_size / 1024)
                 continue
             elif current_size == part_size:
-                _logger.info("Skipping partition %s (%s), already found at %s",
+                if batch:
+                    print("#Skipping already existing partition %s (%s)" % ( part_label, part_name))
+                else:
+                    _logger.info("Skipping partition %s (%s), already found at %s",
                         part_label, part_name, out_path)
                 continue
         except OSError: pass
-        _logger.info("Dumping partition %s (%s) to %s (%d bytes)",
+
+        if batch:
+            print("#%s (%s)" % (part_label, part_name))
+        else:
+            _logger.info("Dumping partition %s (%s) to %s (%d bytes)",
                 part_label, part_name, out_path, part_size)
-        partitions.dump_partition(comm, disk_fd, out_path, part_offset, part_size)
+   
+        partitions.dump_partition(comm, disk_fd, out_path, part_offset, part_size, batch)
 
 def main():
     args = parser.parse_args()
@@ -64,9 +79,12 @@ def main():
 
         with partitions.laf_open_disk(comm) as disk_fd:
             _logger.debug("Opened fd %d for disk", disk_fd)
-            dump_partitions(comm, disk_fd, args.outdir, args.max_size * 1024)
+            dump_partitions(comm, disk_fd, args.outdir, args.max_size * 1024, args.batch)
 
-    _logger.info("All finished!")
+    if args.batch:
+        print("#All finished")
+    else:
+        _logger.info("All finished!")
 
 if __name__ == '__main__':
     main()

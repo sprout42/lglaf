@@ -180,7 +180,8 @@ def dump_partition(comm, disk_fd, local_path, part_offset, part_size, batch=Fals
                 else:
                   print_progress(curr_progress, written, part_size)
 
-        _logger.info("Wrote %d bytes to %s", part_size, local_path)
+        if not batch:
+            _logger.info("Wrote %d bytes to %s", part_size, local_path)
 
 class NoDiskFdException(Exception):
     pass

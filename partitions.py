@@ -140,7 +140,7 @@ def list_partitions(comm, fd_num, part_filter=None, batch=False):
 MAX_BLOCK_SIZE = (16 * 1024 - 512) // 512
 BLOCK_SIZE = 512
 
-def dump_partition(comm, disk_fd, local_path, part_offset, part_size):
+def dump_partition(comm, disk_fd, local_path, part_offset, part_size, batch=False):
     # Read offsets must be a multiple of 512 bytes, enforce this
     read_offset = BLOCK_SIZE * (part_offset // BLOCK_SIZE)
     end_offset = part_offset + part_size
@@ -338,7 +338,10 @@ def main():
 
             _logger.debug("Opened fd %d for disk", disk_fd)
             if args.dump:
-                dump_partition(comm, disk_fd, args.dump, part_offset, part_size)
+                if not args.batch:
+                    dump_partition(comm, disk_fd, args.dump, part_offset, part_size, False)
+                else:
+                    dump_partition(comm, disk_fd, args.dump, part_offset, part_size, True)
             elif args.restore:
                 if not args.batch:
                     write_partition(comm, disk_fd, args.restore, part_offset, part_size, False)

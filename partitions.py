@@ -158,11 +158,28 @@ def dump_partition(comm, disk_fd, local_path, part_offset, part_size, batch=Fals
             f.write(data[unaligned_bytes:])
             read_offset += BLOCK_SIZE
 
+        written = 0
+        old_pos = -1
+
         while read_offset < end_offset:
             chunksize = min(end_offset - read_offset, BLOCK_SIZE * MAX_BLOCK_SIZE)
             data = laf_read(comm, disk_fd, read_offset // BLOCK_SIZE, chunksize)
             f.write(data)
+            written += len(data)
             read_offset += chunksize
+            curr_progress = int(written / part_size * 100)
+
+            _logger.debug("written: %i, part_size: %i , curr_progress: %i",
+                           written, part_size, curr_progress)
+
+            if written <= part_size:
+                _logger.debug("%i <= %i", written, part_size)
+                old_pos = curr_progress
+                if not batch:
+                  print_human_progress(curr_progress, written, part_size)
+                else:
+                  print_progress(curr_progress, written, part_size)
+
         _logger.info("Wrote %d bytes to %s", part_size, local_path)
 
 class NoDiskFdException(Exception):

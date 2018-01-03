@@ -216,25 +216,6 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
 
         while write_offset < end_offset:
 
-            if cur_fd_size >= max_fd_size:
-                cur_fd_size = 0
-                if comm.protocol_version >= 0x1000004 or comm.CR_NEEDED == 1:
-                    lglaf.challenge_response(comm, mode=4)
-                limit_close_cmd = lglaf.make_request(b'CLSE', args=[disk_fd])
-                comm.call(limit_close_cmd)
-                try:
-                    lglaf.challenge_response(comm, mode=2)
-                    open_cmd = lglaf.make_request(b'OPEN', body=b'\0')
-                    open_header = comm.call(open_cmd)[0]
-                    fd_num = read_uint32(open_header, 4)
-                    if not fd_num: raise NoDiskFdException()
-                except:
-                    print("Can not open a new file descriptor! ABORTED!")
-                    sys.exit(3)
-                else:
-                    disk_fd = fd_num
-                    _logger.debug("Opened a new fd: %i", disk_fd)
-
             chunksize = min(end_offset - write_offset, read_size)
             data = f.read(chunksize)
             zdata = zlib.compress(data)
@@ -246,8 +227,8 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
             written += len(data)
 
             curr_progress = int(written / part_size * 100)
-            _logger.debug("disk_fd: %i, cur_fd_size: %i, written: %i, part_size: %i , curr_progress: %i, write_offset: %i, write_offset_bs: %i, end_offset: %i, part_offset: %i, write_mode: %i",
-                           disk_fd, cur_fd_size, written, part_size, curr_progress, write_offset, write_offset_bs, end_offset, part_offset, write_mode)
+            _logger.debug("disk_fd: %i, written: %i, part_size: %i , curr_progress: %i, write_offset: %i, write_offset_bs: %i, end_offset: %i, part_offset: %i, write_mode: 0x%x",
+                           disk_fd, written, part_size, curr_progress, write_offset, write_offset_bs, end_offset, part_offset, write_mode)
 
             if written <= part_size:
                 _logger.debug("%i <= %i", written, part_size)
@@ -261,7 +242,6 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
             write_mode = 0x00
             if len(data) != chunksize:
                 break # Short read, end of file
-            cur_fd_size += len(data)
 
         if not batch:
             _logger.info("Done after writing %d bytes from %s", written, local_path)

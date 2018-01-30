@@ -53,6 +53,7 @@ keys = [
     (0x528, get_str, "device factory out version"),
     (0x3db, get_str, "pid"),
     (0x3c7, get_str, "imei"),
+    (0x38b, get_str, "serial"),
     (0x131, get_str, "model_name"),
     (0x430, get_str, "device build type"),
     (0x43a, get_str, "chipset platform"),

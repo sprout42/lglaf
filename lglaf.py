@@ -493,6 +493,7 @@ parser.add_argument("-c", "--command", help='Shell command to execute')
 parser.add_argument("--serial", metavar="PATH", dest="serial_path",
         help="Path to serial device (e.g. COM4).")
 parser.add_argument("--debug", action='store_true', help="Enable debug messages")
+parser.add_argument("--proto", action='store_true', help="Just print LAF protocol version")
 
 def main():
     args = parser.parse_args()
@@ -513,7 +514,10 @@ def main():
         _logger.debug("Using Protocol version: 0x%x" % comm.protocol_version)
         _logger.debug("CR detection: %i" % comm.CR_NEEDED)
         _logger.debug("Hello done, proceeding with commands")
-        for command in get_commands(args.command):
+        if args.proto:
+            print("%x" % comm.protocol_version)
+        else:    
+          for command in get_commands(args.command):
             try:
                 use_rawshell = (comm.protocol_version >= 0x1000004 or comm.CR_NEEDED == 1)
                 payload = command_to_payload(command, use_rawshell)

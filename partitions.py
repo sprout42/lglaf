@@ -320,7 +320,7 @@ def write_misc_partition(comm, fd_num, local_path, part_offset, part_size, batch
         while write_offset < end_offset:
             # TODO: automatically get the size of misc, but it is hardcoded for now
             # Also, this MUST be divisable by BLOCK_SIZE
-            chunksize = 4096
+            chunksize = 8192
             data = f.read(chunksize)
             if not data:
                 break # End of file

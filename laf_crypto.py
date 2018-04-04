@@ -1,5 +1,4 @@
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
+from Crypto.Cipher import AES
 from lglaf import int_as_byte
 
 
@@ -30,6 +29,5 @@ def encrypt_kilo_challenge(encryption_key, kilo_challenge):
         plaintext += int_as_byte(k)
     encryption_key = key_transform(encryption_key)
     xored_key = xor_key(encryption_key, kilo_challenge)
-    obj = Cipher(algorithms.AES(xored_key), modes.ECB(),
-                 backend=default_backend()).encryptor()
-    return obj.update(plaintext) + obj.finalize()
+    obj = AES.new(xored_key, AES.MODE_ECB)
+    return obj.encrypt(plaintext)

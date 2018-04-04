@@ -299,6 +299,13 @@ class USBCommunication(Communication):
             raise RuntimeError("USB device not found")
 
 
+        cr_device = kilo_lg_product_ids.get(self.usbdev.idProduct,'')
+        _logger.debug("product id in CR list: >%s<", cr_device)
+        if cr_device:
+            _logger.debug("Device is: %x, %s. Enabling Challenge/Response!", self.usbdev.idProduct, cr_device)
+            self.CR_NEEDED=1
+        else:
+            self.CR_NEEDED=0
 
         cfg = usb.util.find_descriptor(self.usbdev,
                 custom_match=self._match_configuration)
@@ -505,16 +512,17 @@ def main():
     with closing(comm):
         try_hello(comm)
         _logger.debug("Using Protocol version: 0x%x" % comm.protocol_version)
+        _logger.debug("CR detection: %i" % comm.CR_NEEDED)
         _logger.debug("Hello done, proceeding with commands")
         if args.proto:
             print("%x" % comm.protocol_version)
         else:    
           for command in get_commands(args.command):
             try:
-                use_rawshell = (comm.protocol_version >= 0x1000004)
+                use_rawshell = (comm.protocol_version >= 0x1000004 or comm.CR_NEEDED == 1)
                 payload = command_to_payload(command, use_rawshell)
                 # Dirty hack
-                if comm.protocol_version >= 0x1000004:
+                if comm.protocol_version >= 0x1000004 or comm.CR_NEEDED == 1:
                     if payload[0:4] == b'UNLK' or \
                        payload[0:4] == b'OPEN' or \
                        payload[0:4] == b'EXEC':

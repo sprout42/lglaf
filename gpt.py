@@ -395,7 +395,7 @@ def get_gpt_info(disk):
   #  blocksize = struct.unpack('i', ioctl(disk.fileno(), 4608 | 104, struct.pack('i', -1)))[0]
   #except:
   #  blocksize = 512
-  blocksize = 512
+  blocksize = 4096
   try:
     info['lba_size'] = blocksize
     gptheader = read_gpt_header(disk, lba_size=blocksize)

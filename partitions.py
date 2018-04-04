@@ -15,7 +15,7 @@ import zlib
 
 _logger = logging.getLogger("partitions")
 
-GPT_LBA_LEN = 34
+GPT_LBA_LEN = 6
 
 def human_readable(sz):
     suffixes = ('', 'Ki', 'Mi', 'Gi', 'Ti')
@@ -95,7 +95,7 @@ def laf_write(comm, fd_num, offset, write_mode, zdata):
     write_cmd = lglaf.make_request(b'WRTE', args=[fd_num, offset, write_mode], body=zdata)
     header = comm.call(write_cmd)[0]
     # Response offset (in bytes) must match calculated offset
-    calc_offset = (offset * 512) & 0xffffffff
+    calc_offset = (offset * 4096) & 0xffffffff
     resp_offset = read_uint32(header, 8)
     assert write_cmd[4:4+4] == header[4:4+4], "Unexpected write response"
     assert calc_offset == resp_offset, \
@@ -121,7 +121,7 @@ def laf_misc_write(comm, size, data):
     #header = comm.call(write_cmd)[0]
     comm.call(write_cmd)
     # The response for MISC WRTE isn't understood yet
-    #calc_offset = (offset * 512) & 0xffffffff
+    #calc_offset = (offset * 4096) & 0xffffffff
     #resp_offset = read_uint32(header, 8)
     #assert write_cmd[4:4+4] == header[4:4+4], "Unexpected write response"
     #assert calc_offset == resp_offset, \
@@ -160,14 +160,14 @@ def list_partitions(comm, fd_num, part_filter=None, batch=False):
         gpt.show_disk_partitions_info(diskinfo, batch)
 
 # On Linux, one bulk read returns at most 16 KiB. 32 bytes are part of the first
-# header, so remove one block size (512 bytes) to stay within that margin.
+# header, so remove one block size (4096 bytes) to stay within that margin.
 # This ensures that whenever the USB communication gets out of sync, it will
 # always start with a message header, making recovery easier.
-MAX_BLOCK_SIZE = (16 * 1024 - 512) // 512
-BLOCK_SIZE = 512
+MAX_BLOCK_SIZE = (16 * 1024 - 4096) // 4096
+BLOCK_SIZE = 4096
 
 def dump_partition(comm, disk_fd, local_path, part_offset, part_size, batch=False):
-    # Read offsets must be a multiple of 512 bytes, enforce this
+    # Read offsets must be a multiple of 4096 bytes, enforce this
     read_offset = BLOCK_SIZE * (part_offset // BLOCK_SIZE)
     end_offset = part_offset + part_size
     unaligned_bytes = part_offset % BLOCK_SIZE
@@ -220,7 +220,7 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
         raise RuntimeError("Unaligned partition writes are not supported yet")
 
     # Sanity check
-    assert part_offset >= 34 * 512, "Will not allow overwriting GPT scheme"
+    assert part_offset >= 6 * 4096, "Will not allow overwriting GPT scheme"
 
     # disable RESTORE until newer LAF communication is fixed! this will not work atm!
     if comm.protocol_version >= 0x1000001:
@@ -296,7 +296,7 @@ def write_misc_partition(comm, fd_num, local_path, part_offset, part_size, batch
         raise RuntimeError("Unaligned partition writes are not supported yet")
 
     # Sanity check
-    assert part_offset >= 34 * 512, "Will not allow overwriting GPT scheme"
+    assert part_offset >= 6 * 4096, "Will not allow overwriting GPT scheme"
 
     with open_local_readable(local_path) as f:
         try:
@@ -315,12 +315,12 @@ def write_misc_partition(comm, fd_num, local_path, part_offset, part_size, batch
             if length > 0:
                 _logger.debug("Will write %d bytes", length)
         # TODO: automatically detect this.
-        misc_start = 262144
+        misc_start = 24582
         written = 0
         while write_offset < end_offset:
             # TODO: automatically get the size of misc, but it is hardcoded for now
             # Also, this MUST be divisable by BLOCK_SIZE
-            chunksize = 10240
+            chunksize = 4096
             data = f.read(chunksize)
             if not data:
                 break # End of file
@@ -328,12 +328,8 @@ def write_misc_partition(comm, fd_num, local_path, part_offset, part_size, batch
                 chunksize = len(data)
             # This writes to misc
             laf_misc_write(comm, chunksize, data)
-            # This enables write to the FD
-            laf_ioct(comm, fd_num,0x1261)
             # This copies the data from misc to your destination partition
             laf_copy(comm, fd_num, misc_start, chunksize, write_offset // BLOCK_SIZE)
-            # This disables write on the FD.
-            laf_ioct(comm, fd_num,0x1261)
 
             written += len(data)
             write_offset += chunksize

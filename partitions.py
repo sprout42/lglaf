@@ -321,18 +321,20 @@ def write_misc_partition(comm, fd_num, local_path, part_offset, part_size, batch
             # TODO: automatically get the size of misc, but it is hardcoded for now
             # Also, this MUST be divisable by BLOCK_SIZE
             chunksize = 10240
-            #chunksize = min(end_offset - write_offset, BLOCK_SIZE * MAX_BLOCK_SIZE)
             data = f.read(chunksize)
             if not data:
                 break # End of file
             if len(data) != chunksize:
                 chunksize = len(data)
+            # This writes to misc
             laf_misc_write(comm, chunksize, data)
+            # This enables write to the FD
             laf_ioct(comm, fd_num,0x1261)
+            # This copies the data from misc to your destination partition
             laf_copy(comm, fd_num, misc_start, chunksize, write_offset // BLOCK_SIZE)
+            # This disables write on the FD.
             laf_ioct(comm, fd_num,0x1261)
 
-            #laf_write(comm, disk_fd, write_offset // BLOCK_SIZE, data)
             written += len(data)
             write_offset += chunksize
             if len(data) != chunksize:

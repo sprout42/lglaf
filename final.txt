@@ -1,0 +1,4 @@
+OK, while you are in TWRP you need to do a couple of things:
+1 - Format data. Choose wipe / format data / type yes
+2 - Flash Magisk (or some su binary)
+3 - Enjoy your now rooted phone!

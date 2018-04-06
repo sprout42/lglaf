@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 #
 # Interactive shell for communication with LG devices in download mode (LAF).
 #

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 #
 # Manage a single partition (info, read, write).
 #
@@ -100,32 +100,6 @@ def laf_write(comm, fd_num, offset, write_mode, zdata):
     assert write_cmd[4:4+4] == header[4:4+4], "Unexpected write response"
     assert calc_offset == resp_offset, \
             "Unexpected write response: %#x != %#x" % (calc_offset, resp_offset)
-
-def laf_copy(comm, fd_num, src_offset, size, dst_offset):
-    """This will copy blocks from one location to another on the same block device"""
-    copy_cmd = lglaf.make_request(b'COPY', args=[fd_num, src_offset, size, dst_offset])
-    comm.call(copy_cmd)
-    # Response is unknown at this time
-
-def laf_ioct(comm, fd_num, param):
-    """This manipulates ioctl for a given file descriptor"""
-    """The only known IOCT param is 0x1261 which enables write"""
-    ioct_cmd = lglaf.make_request(b'IOCT', args=[fd_num, param])
-    comm.call(ioct_cmd)
-
-def laf_misc_write(comm, size, data):
-    """This is for writting to the misc partition."""
-    """You can specify an offset, but that is currently not implemented"""
-    misc_offset = 0
-    write_cmd = lglaf.make_request(b'MISC', args=[b'WRTE', misc_offset, size], body=data)
-    #header = comm.call(write_cmd)[0]
-    comm.call(write_cmd)
-    # The response for MISC WRTE isn't understood yet
-    #calc_offset = (offset * 512) & 0xffffffff
-    #resp_offset = read_uint32(header, 8)
-    #assert write_cmd[4:4+4] == header[4:4+4], "Unexpected write response"
-    #assert calc_offset == resp_offset, \
-    #        "Unexpected write response: %#x != %#x" % (calc_offset, resp_offset)
 
 def open_local_writable(path):
     if path == '-':
@@ -289,57 +263,6 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
     else:
         _logger.error("Your installed firmware does not support writing atm. sorry.")
 
-def write_misc_partition(comm, fd_num, local_path, part_offset, part_size, batch):
-    write_offset = BLOCK_SIZE * (part_offset // BLOCK_SIZE)
-    end_offset = part_offset + part_size
-    if part_offset % BLOCK_SIZE:
-        raise RuntimeError("Unaligned partition writes are not supported yet")
-
-    # Sanity check
-    assert part_offset >= 34 * 512, "Will not allow overwriting GPT scheme"
-
-    with open_local_readable(local_path) as f:
-        try:
-            length = f.seek(0, 2)
-        except OSError:
-            # Will try to write up to the end of the file.
-            _logger.debug("File %s is not seekable, length is unknown",
-                    local_path)
-        else:
-            # Restore position and check if file is small enough
-            f.seek(0)
-            if length > part_size:
-                raise RuntimeError("File size %d is larger than partition "
-                        "size %d" % (length, part_size))
-            # Some special bytes report 0 (such as /dev/zero)
-            if length > 0:
-                _logger.debug("Will write %d bytes", length)
-        # TODO: automatically detect this.
-        misc_start = 262144
-        written = 0
-        while write_offset < end_offset:
-            # TODO: automatically get the size of misc, but it is hardcoded for now
-            # Also, this MUST be divisable by BLOCK_SIZE
-            chunksize = 10240
-            data = f.read(chunksize)
-            if not data:
-                break # End of file
-            if len(data) != chunksize:
-                chunksize = len(data)
-            # This writes to misc
-            laf_misc_write(comm, chunksize, data)
-            # This enables write to the FD
-            laf_ioct(comm, fd_num,0x1261)
-            # This copies the data from misc to your destination partition
-            laf_copy(comm, fd_num, misc_start, chunksize, write_offset // BLOCK_SIZE)
-            # This disables write on the FD.
-            laf_ioct(comm, fd_num,0x1261)
-
-            written += len(data)
-            write_offset += chunksize
-            if len(data) != chunksize:
-                break # Short read, end of file
-        _logger.info("Done after writing %d bytes from %s", written, local_path)
 
 def print_progress(i, current_val, max_val):
     current_val = int(current_val / 1024)
@@ -377,8 +300,6 @@ parser.add_argument("--dump", metavar="LOCAL_PATH",
         help="Dump partition to file ('-' for stdout)")
 parser.add_argument("--restore", metavar="LOCAL_PATH",
         help="Write file to partition on device ('-' for stdin)")
-parser.add_argument("--restoremisc", metavar="LOCAL_PATH",
-        help="Write file to partition on device with MISC WRTE / COPY ('-' for stdin)")
 parser.add_argument("--wipe", action='store_true',
         help="TRIMs a partition")
 parser.add_argument("partition", nargs='?',
@@ -394,10 +315,10 @@ def main():
     logging.basicConfig(format='%(asctime)s %(name)s: %(levelname)s: %(message)s',
             level=logging.DEBUG if args.debug else logging.INFO)
 
-    actions = (args.list, args.dump, args.restore, args.restoremisc, args.wipe)
+    actions = (args.list, args.dump, args.restore, args.wipe)
     if sum(1 if x else 0 for x in actions) != 1:
         parser.error("Please specify one action from"
-        " --list / --dump / --restore /--restoremisc / --wipe")
+        " --list / --dump / --restore / --wipe")
     if not args.partition and (args.dump or args.restore or args.wipe):
         parser.error("Please specify a partition")
 
@@ -444,11 +365,6 @@ def main():
                     write_partition(comm, disk_fd, args.restore, part_offset, part_size, False)
                 else:
                     write_partition(comm, disk_fd, args.restore, part_offset, part_size, True)
-            elif args.restoremisc:
-                if not args.batch:
-                    write_misc_partition(comm, disk_fd, args.restoremisc, part_offset, part_size, False)
-                else:
-                    write_misc_partition(comm, disk_fd, args.restoremisc, part_offset, part_size, True)
             elif args.wipe:
                 if not args.batch:
                     wipe_partition(comm, disk_fd, part_offset, part_size, False)

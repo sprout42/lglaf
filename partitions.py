@@ -316,7 +316,7 @@ def write_misc_partition(comm, fd_num, local_path, part_offset, part_size, batch
             if length > 0:
                 _logger.debug("Will write %d bytes", length)
         # TODO: automatically detect this.
-        misc_start = 43014
+        misc_start = 24582
         written = 0
         while write_offset < end_offset:
             # TODO: automatically get the size of misc, but it is hardcoded for now
@@ -375,12 +375,8 @@ parser.add_argument("--list", action='store_true',
 parser.add_argument("--dump", metavar="LOCAL_PATH",
         help="Dump partition to file ('-' for stdout)")
 parser.add_argument("--restore", metavar="LOCAL_PATH",
-        help="Write file to partition on device. You MUST have the SIGN payload ('-' for stdin)")
-parser.add_argument("--srcpart", action='store_true',
-        help="Specify a source partition")
-parser.add_argument("--dstpart", action='store_true',
-        help="Specify a destination partition")
-parser.add_argument("--misccopy", metavar="LOCAL_PATH",
+        help="Write file to partition on device ('-' for stdin)")
+parser.add_argument("--restoremisc", metavar="LOCAL_PATH",
         help="Write file to partition on device with MISC WRTE / COPY ('-' for stdin)")
 parser.add_argument("--wipe", action='store_true',
         help="TRIMs a partition")
@@ -403,7 +399,6 @@ def main():
         " --list / --dump / --restore /--restoremisc / --wipe")
     if not args.partition and (args.dump or args.restore or args.wipe):
         parser.error("Please specify a partition")
-    if not args.srcpart or args.dstpart
 
     if args.partition and args.partition.isdigit():
         args.partition = int(args.partition)
@@ -428,22 +423,12 @@ def main():
             except ValueError as e:
                 parser.error(e)
 
-            srcinfo = get_partition_info_string(srcpart)
-            dstinfo = get_partition_info_string(dstpart)
-            miscinfo = get_partition_info_string(misc)
+            info = get_partition_info_string(part)
 
-            _logger.debug("%s", srcinfo)
-            _logger.debug("%s", dstinfo)
-            _logger.debug("%s", miscinfo)
+            _logger.debug("%s", info)
 
-            src_part_offset = srcpart.first_lba * BLOCK_SIZE
-            src_part_size = (srcpart.last_lba - (srcpart.first_lba - 1)) * BLOCK_SIZE
-
-            dst_part_offset = dstpart.first_lba * BLOCK_SIZE
-            dst_part_size = (dstpart.last_lba - (dstpart.first_lba - 1)) * BLOCK_SIZE
-
-            misc_part_offset = miscpart.first_lba * BLOCK_SIZE
-            src_part_size = (srcpart.last_lba - (srcpart.first_lba - 1)) * BLOCK_SIZE
+            part_offset = part.first_lba * BLOCK_SIZE
+            part_size = (part.last_lba - (part.first_lba - 1)) * BLOCK_SIZE
 
             _logger.debug("%s", info)
 
@@ -458,7 +443,7 @@ def main():
                     write_partition(comm, disk_fd, args.restore, part_offset, part_size, False)
                 else:
                     write_partition(comm, disk_fd, args.restore, part_offset, part_size, True)
-            elif args.misccopy:
+            elif args.restoremisc:
                 if not args.batch:
                     write_misc_partition(comm, disk_fd, args.restoremisc, part_offset, part_size, False)
                 else:

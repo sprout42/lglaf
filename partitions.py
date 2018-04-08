@@ -316,7 +316,7 @@ def write_misc_partition(comm, fd_num, local_path, part_offset, part_size, batch
             if length > 0:
                 _logger.debug("Will write %d bytes", length)
         # TODO: automatically detect this.
-        misc_start = 24582
+        misc_start = 43014
         written = 0
         while write_offset < end_offset:
             # TODO: automatically get the size of misc, but it is hardcoded for now

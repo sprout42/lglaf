@@ -301,7 +301,7 @@ class USBCommunication(Communication):
 
         cr_device = kilo_lg_product_ids.get(self.usbdev.idProduct,'')
         _logger.debug("product id in CR list: >%s<", cr_device)
-        if cr_device:
+        if cr_device and protocol_version != 0x1000001:
             _logger.debug("Device is: %x, %s. Enabling Challenge/Response!", self.usbdev.idProduct, cr_device)
             self.CR_NEEDED=1
         else:

@@ -445,7 +445,8 @@ def show_disk_partitions_info(diskOrInfo, batch=False):
       print('#   Flags From(#s)   To(#s)     GUID/UID                             Type/Name')
     for part in gpt.partitions:
       if batch:
-        print(('{name}:{n}:{from_s}:{to_s}:{uid}').format(name=part.name, n=part.index, from_s=part.first_lba, to_s=part.last_lba, uid=part.uid))
+          size_kb = int(round((part.last_lba - part.first_lba +1) * gpt.lba_size / 1024,0))
+          print(('{name}:{n}:{from_s}:{to_s}:{uid}:{size_kb}').format(name=part.name, n=part.index, from_s=part.first_lba, to_s=part.last_lba, uid=part.uid, size_kb=size_kb))
       else:
         print(('{n: <3} {flags: ^5} {from_s: <10} {to_s: <10} {guid} {type}\n' + ' ' * 32 + '{uid} {name}').format(n=part.index, flags=part.flags, from_s=part.first_lba, to_s=part.last_lba, guid=part.guid, type=part.type, uid=part.uid, name=part.name))
   else:

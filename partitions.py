@@ -57,7 +57,8 @@ def find_partition(diskinfo, query):
 def laf_open_disk(comm):
     # Open whole disk in read/write mode
     open_cmd = lglaf.make_request(b'OPEN', body=b'\0')
-    if comm.protocol_version >= 0x1000004 or comm.CR_NEEDED == 1:
+    cr_needed = lglaf.chk_mode(comm.protocol_version,comm.CR_NEEDED,comm.CR_MODE)
+    if cr_needed == 1:
         lglaf.challenge_response(comm, 2)
     open_header = comm.call(open_cmd)[0]
     fd_num = read_uint32(open_header, 4)
@@ -65,7 +66,7 @@ def laf_open_disk(comm):
         yield fd_num
     finally:
         close_cmd = lglaf.make_request(b'CLSE', args=[fd_num])
-        if comm.protocol_version >= 0x1000004 or comm.CR_NEEDED == 1:
+        if cr_needed == 1:
             lglaf.challenge_response(comm, 4)
         comm.call(close_cmd)
 
@@ -370,6 +371,7 @@ def wipe_partition(comm, disk_fd, part_offset, part_size, batch):
         print("TRIM ok:", sector_start, sector_count, human_readable(part_size))
 
 parser = argparse.ArgumentParser()
+parser.add_argument("--cr", choices=['yes', 'no'], help="Do initial challenge response (KILO CENT/METR)")
 parser.add_argument("--debug", action='store_true', help="Enable debug messages")
 parser.add_argument("--list", action='store_true',
         help='List available partitions')
@@ -404,7 +406,7 @@ def main():
     if args.partition and args.partition.isdigit():
         args.partition = int(args.partition)
 
-    comm = lglaf.autodetect_device()
+    comm = lglaf.autodetect_device(args.cr)
     with closing(comm):
 
         lglaf.try_hello(comm)

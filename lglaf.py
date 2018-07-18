@@ -289,7 +289,7 @@ class USBCommunication(Communication):
     VENDOR_ID_LG = 0x1004
     # Read timeout. Set to 0 to disable timeouts
     READ_TIMEOUT_MS = 450000
-    def __init__(self):
+    def __init__(self,cr):
         super(USBCommunication, self).__init__()
         # Match device using heuristics on the interface/endpoint descriptors,
         # this avoids hardcoding idProduct.
@@ -298,14 +298,26 @@ class USBCommunication(Communication):
         if self.usbdev is None:
             raise RuntimeError("USB device not found")
 
-
         cr_device = kilo_lg_product_ids.get(self.usbdev.idProduct,'')
         _logger.debug("product id in CR list: >%s<", cr_device)
-        if cr_device and self.protocol_version != 0x1000001:
+        if cr_device:
             _logger.debug("Device is: %x, %s. Enabling Challenge/Response!", self.usbdev.idProduct, cr_device)
             self.CR_NEEDED=1
         else:
             self.CR_NEEDED=0
+        
+        self.CR_MODE = None
+
+        if cr == "yes":
+            self.CR_NEEDED=1
+            self.CR_MODE = "forced"
+            _logger.debug("forced CR detection to: %s / %i", cr, self.CR_NEEDED )
+        elif cr == "no":
+            self.CR_NEEDED=0
+            self.CR_MODE = "forced"
+            _logger.debug("forced CR detection to: %s / %i", cr, self.CR_NEEDED )
+ 
+        _logger.debug("Final CR detection: %s / %i", cr, self.CR_NEEDED )
 
         cfg = usb.util.find_descriptor(self.usbdev,
                 custom_match=self._match_configuration)
@@ -428,7 +440,7 @@ def detect_serial_path():
     except OSError: pass
     return None
 
-def autodetect_device():
+def autodetect_device(cr):
     if winreg is not None and 'usb.core' not in sys.modules:
         serial_path = detect_serial_path()
         _logger.debug("Using serial port: %s", serial_path)
@@ -438,7 +450,7 @@ def autodetect_device():
     else:
         if 'usb.core' not in sys.modules:
             raise RuntimeError("Please install PyUSB for USB support")
-        return USBCommunication()
+        return USBCommunication(cr)
 
 
 ### Interactive loop
@@ -482,9 +494,19 @@ def command_to_payload(command, rawshell):
     body = text_unescape(body)
     return make_request(command, args, body)
 
+# decide if CR is needed based on cr parameter and protocol version
+def chk_mode(pv,cr,cmode):
+    cr_mode = 0
+    if (pv < 0x1000004 and cr == 0) or (cr == 0 and cmode == "forced"):
+        cr_mode = 0
+    elif (pv >= 0x1000004) or (cr == 1 and cmode == "forced"):
+        cr_mode = 1
+    elif (pv < 0x1000004 and cr == 1 ):
+        cr_mode = 1
+    return cr_mode
+
 parser = argparse.ArgumentParser(description='LG LAF Download Mode utility')
-parser.add_argument("--cr", action="store_true",
-        help="Do initial challenge response (KILO CENT/METR)")
+parser.add_argument("--cr", choices=['yes', 'no'], help="Do initial challenge response (KILO CENT/METR)")
 parser.add_argument('--rawshell', action="store_true",
         help="Execute shell commands as-is, needed on recent devices. "
              "CAUTION: stderr output is not redirected!")
@@ -507,22 +529,24 @@ def main():
     if args.serial_path:
         comm = FileCommunication(args.serial_path)
     else:
-        comm = autodetect_device()
+        comm = autodetect_device(args.cr)
 
     with closing(comm):
         try_hello(comm)
         _logger.debug("Using Protocol version: 0x%x" % comm.protocol_version)
         _logger.debug("CR detection: %i" % comm.CR_NEEDED)
         _logger.debug("Hello done, proceeding with commands")
+
         if args.proto:
             print("%x" % comm.protocol_version)
         else:    
           for command in get_commands(args.command):
             try:
-                use_rawshell = (comm.protocol_version >= 0x1000004 or comm.CR_NEEDED == 1)
+                cr_needed = chk_mode(comm.protocol_version,comm.CR_NEEDED,comm.CR_MODE)
+                use_rawshell = (cr_needed == 1)
                 payload = command_to_payload(command, use_rawshell)
                 # Dirty hack
-                if comm.protocol_version >= 0x1000004 or comm.CR_NEEDED == 1:
+                if cr_needed == 1:
                     if payload[0:4] == b'UNLK' or \
                        payload[0:4] == b'OPEN' or \
                        payload[0:4] == b'EXEC':

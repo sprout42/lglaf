@@ -224,7 +224,7 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
     assert part_offset >= 34 * 512, "Will not allow overwriting GPT scheme"
 
     # disable RESTORE until newer LAF communication is fixed! this will not work atm!
-    if comm.protocol_version >= 0x1000001:
+    if comm.protocol_version == 0x1000001:
       # ensure to TRIM the partition first | DISABLED as on newer firmware erasing is possible while writing not (yet)
       # and unfortunately some devices requires chall/resp even when on 1000001 proto (like the H811 20v)
       #if not batch:

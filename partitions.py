@@ -287,8 +287,8 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
 
         if not batch:
             _logger.info("Done after writing %d bytes from %s", written, local_path)
-    else:
-        _logger.error("Your installed firmware does not support writing atm. sorry.")
+    else: 
+        raise RuntimeError("Your installed firmware %x does not support writing atm. sorry." % comm.protocol_version)
 
 def write_misc_partition(comm, fd_num, local_path, part_offset, part_size, batch):
     write_offset = BLOCK_SIZE * (part_offset // BLOCK_SIZE)

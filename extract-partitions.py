@@ -12,6 +12,7 @@ import lglaf, partitions
 _logger = logging.getLogger("extract-partitions")
 
 parser = argparse.ArgumentParser()
+parser.add_argument("--cr", choices=['yes', 'no'], help="Do initial challenge response (KILO CENT/METR)")
 parser.add_argument("-d", "--outdir", default=".",
         help="Output directory for disk images.")
 # Do not dump partitions larger than this size
@@ -72,7 +73,7 @@ def main():
     try: os.makedirs(args.outdir)
     except OSError: pass
 
-    comm = lglaf.autodetect_device()
+    comm = lglaf.autodetect_device(args.cr)
     with closing(comm):
         lglaf.try_hello(comm)
         _logger.debug("Using Protocol version: 0x%x" % comm.protocol_version)

@@ -220,7 +220,7 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
     assert part_offset >= 34 * 512, "Will not allow overwriting GPT scheme"
 
     # disable RESTORE until newer LAF communication is fixed! this will not work atm!
-    if comm.protocol_version == 0x1000001:
+    if comm.protocol_version >= 0x1000001:
       # ensure to TRIM the partition first | DISABLED as on newer firmware erasing is possible while writing not (yet)
       # and unfortunately some devices requires chall/resp even when on 1000001 proto (like the H811 20v)
       #if not batch:
@@ -263,17 +263,17 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
             laf_write(comm, disk_fd, write_offset_bs, write_mode, data)
             written += len(data)
 
-            curr_progress = int(written / part_size * 100)
+            curr_progress = int(written / length * 100)
             _logger.debug("disk_fd: %i, written: %i, part_size: %i , curr_progress: %i, write_offset: %i, write_offset_bs: %i, end_offset: %i, part_offset: %i, write_mode: 0x%x",
                            disk_fd, written, part_size, curr_progress, write_offset, write_offset_bs, end_offset, part_offset, write_mode)
 
-            if written <= part_size:
-                _logger.debug("%i <= %i", written, part_size)
+            if written <= length:
+                _logger.debug("%i <= %i", written, length)
                 old_pos = curr_progress
                 if not batch:
-                  print_human_progress(curr_progress, written, part_size)
+                  print_human_progress(curr_progress, written, length)
                 else:
-                  print_progress(curr_progress, written, part_size)
+                  print_progress(curr_progress, written, length)
 
             write_offset += chunksize
             write_mode = 0x00 # Streaming write mode. Only used for TOT writing MM or earlier
@@ -314,7 +314,7 @@ def write_misc_partition(comm, fd_num, local_path, part_offset, part_size, batch
         while write_offset < end_offset:
             # TODO: automatically get the size of misc, but it is hardcoded for now
             # Also, this MUST be divisable by BLOCK_SIZE
-            chunksize = 10240
+            chunksize = 512
             data = f.read(chunksize)
             if not data:
                 break # End of file
@@ -330,6 +330,16 @@ def write_misc_partition(comm, fd_num, local_path, part_offset, part_size, batch
             laf_ioct(comm, fd_num,0x1261)
 
             written += len(data)
+            curr_progress = int(written / length * 100)
+
+            if written <= length:
+                _logger.debug("%i <= %i", written, length)
+                old_pos = curr_progress
+                if not batch:
+                  print_human_progress(curr_progress, written, length)
+                else:
+                  print_progress(curr_progress, written, length)
+
             write_offset += chunksize
             if len(data) != chunksize:
                 break # Short read, end of file

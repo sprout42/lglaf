@@ -87,13 +87,9 @@ def laf_erase(comm, fd_num, sector_start, sector_count):
     # Ensure that response fd, start and count are sane (match the request)
     assert erase_cmd[4:4+12] == header[4:4+12], "Unexpected erase response"
 
-def laf_write(comm, fd_num, offset, write_mode, zdata):
+def laf_write(comm, fd_num, offset, write_mode, data):
     """Write size bytes at the given block offset."""
-    #_logger.debug("WRTE(0x%05x, #%d)", offset, len(data)); return
-    #write_cmd = lglaf.make_request(b'WRTE', args=[fd_num, offset], body=data)
-    #write_cmd = lglaf.make_request(b'WRTE', args=[fd_num, offset], body=zdata)
-    #write_cmd = lglaf.make_request(b'WRTE', args=[fd_num, offset, 0x00, write_mode], body=data)
-    write_cmd = lglaf.make_request(b'WRTE', args=[fd_num, offset, write_mode], body=zdata)
+    write_cmd = lglaf.make_request(b'WRTE', args=[fd_num, offset, write_mode], body=data)
     header = comm.call(write_cmd)[0]
     # Response offset (in bytes) must match calculated offset
     calc_offset = (offset * 512) & 0xffffffff
@@ -252,19 +248,18 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
         written = 0
         old_pos = -1
         read_size = 1048576  # 1 MB (anything higher will have 0 effect but this speeds up a lot)
-        #read_size = 16384   # 16 KB as a usual USB block is
-        write_mode = 0x20    # needed to be send at start of WRTE on some devices
+        write_mode = 0x20    # TOT write mode. MM or earlier. Must be uncompressed data.
+        chunksize = min(end_offset - write_offset, read_size)
 
         while write_offset < end_offset:
 
-            chunksize = min(end_offset - write_offset, read_size)
             data = f.read(chunksize)
-            zdata = zlib.compress(data)
             if not data:
                 break # End of file
+            if len(data) != chunksize:
+                chunksize = len(data)
+            
             write_offset_bs = write_offset // BLOCK_SIZE
-            #laf_write(comm, disk_fd, write_offset_bs, write_mode, zdata)
-            #laf_write(comm, disk_fd, write_offset_bs, data)
             laf_write(comm, disk_fd, write_offset_bs, write_mode, data)
             written += len(data)
 
@@ -281,9 +276,7 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
                   print_progress(curr_progress, written, part_size)
 
             write_offset += chunksize
-            write_mode = 0x00
-            if len(data) != chunksize:
-                break # Short read, end of file
+            write_mode = 0x00 # Streaming write mode. Only used for TOT writing MM or earlier
 
         if not batch:
             _logger.info("Done after writing %d bytes from %s", written, local_path)

@@ -17,7 +17,7 @@ echo
 echo "You can re-run this script as many times as you want, however,"
 echo "if you are not getting a hash match, you should try a different PC,"
 echo "or a different cable, or a different USB port."
-read -n1 -r -p "Press any key to continue..." key
+read -n1 -r -p "Press SPACE to continue..." KEY
 
 if [ "$KEY" = '' ]; then
 	echo "Flashing... this will take a while."
@@ -26,16 +26,17 @@ else
 	exit
 fi
 
+# This is for the H872 -- DO NOT MODIFY, and DO NOT run this on any other model
+SRC_OFFSET=12294
+DST_OFFSET=6
 TWRP="h872-twrp.img"
 TWRPTMP="h872-twrp-tmp.img"
 TWRPTEST="test.img"
-SRC_OFFSET=12294
-DST_OFFSET=6
-SIZE=21753856
+SIZE=$(stat -c%s $TWRP)
+BS=1024
+COUNT=$((SIZE / BS))
 TRIES=0
 RETRIES=5
-COUNT=21244
-BS=1024
 rm ${TWRPTMP} > /dev/null 2>&1
 rm ${TWRPTEST} > /dev/null 2>&1
 

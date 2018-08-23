@@ -49,6 +49,8 @@ function flash () {
 	./partitions.py --dump ${TWRPTMP} lafbak
 	echo "Trimming trailing zeros"
 	dd if=${TWRPTMP} of=${TWRPTEST} bs=${BS} count=${COUNT} > /dev/null 2>&1 # This strips the trailing whitespace so the dump is the same size as TWRP
+	TMPSIZE=$(stat -c%s $TWRPTEST)
+	echo "Temp file size: "$TMPSIZE
 	SHA1=`sha256sum ${TWRP} | awk '{print $1}'`
 	SHA2=`sha256sum ${TWRPTEST} | awk '{print $1}'`
 	STRHASH1="S${SHA1}"

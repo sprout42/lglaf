@@ -33,8 +33,10 @@ TWRP="h872-twrp.img"
 TWRPTMP="h872-twrp-tmp.img"
 TWRPTEST="test.img"
 SIZE=$(stat -c%s $TWRP)
+echo "Size of TWRP: "$SIZE
 BS=1024
 COUNT=$((SIZE / BS))
+echo "Count for the dd trim: "$COUNT
 TRIES=0
 RETRIES=5
 rm ${TWRPTMP} > /dev/null 2>&1

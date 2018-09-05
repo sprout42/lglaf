@@ -1,5 +1,7 @@
 #!/bin/bash
 # another n00b script that roots the phone...
+echo "Use the manual procedure on the forum until I am able to work the bugs out."
+exit
 echo "Make sure your phone has full booted into TWRP."
 echo
 read -n1 -r -p "Press any key to continue..." key

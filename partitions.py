@@ -335,6 +335,17 @@ def write_misc_partition(comm, fd_num, local_path, part_offset, part_size, batch
             laf_ioct(comm, fd_num, 0x1261)
 
             written += len(data)
+            curr_progress = int(written / length * 100)
+
+            if written <= length:
+                _logger.debug("%i <= %i", written, length)
+                old_pos = curr_progress
+                if not batch:
+                  print_human_progress(curr_progress, written, length)
+                else:
+                  print_progress(curr_progress, written, length)
+
+
             write_offset += chunksize
             if len(data) != chunksize:
                 break # Short read, end of file

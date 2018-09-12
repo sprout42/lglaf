@@ -1,7 +1,5 @@
 #!/bin/bash
 # another n00b script that roots the phone...
-echo "Use the manual procedure on the forum until I am able to work the bugs out."
-exit
 echo "Make sure your phone has full booted into TWRP."
 echo
 read -n1 -r -p "Press any key to continue..." key
@@ -21,7 +19,8 @@ echo "Formatting data"
 adb shell mkfs.ext2 /dev/block/bootdevice/by-name/userdata
 echo
 echo "Mounting data"
-adb shell mount /data
+adb shell mount /dev/block/bootdevice/by-name/userdata /data
+adb shell mount /dev/block/bootdevice/by-name/userdata /sdcard
 echo
 echo "Mounting system r/w"
 adb shell mount -o rw /system

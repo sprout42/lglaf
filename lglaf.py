@@ -43,7 +43,7 @@ BASE_PROTOCOL_VERSION = 0x1000001
 
 # all product ids which requires challenge response / KILO
 kilo_lg_product_ids = {
-    0x633a: "G4",
+    0x633a: "LG_new",
 }
 
 laf_error_codes = {

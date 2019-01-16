@@ -24,10 +24,83 @@ except ImportError:
 _logger = logging.getLogger("LGLAF.py")
 
 # Python 2/3 compat
-try: input = raw_input
-except: pass
-if '\0' == b'\0': int_as_byte = chr
-else: int_as_byte = lambda x: bytes([x])
+try:
+    input = raw_input
+except:
+    pass
+
+if '\0' == b'\0':
+    int_as_byte = chr
+else:
+    int_as_byte = lambda x: bytes([x])
+
+# laf crypto for KILO challenge/response
+try:
+    import laf_crypto
+except ImportError as e:
+    _logger.warning("LAF Crypto failed to import! Error: %s" % e)
+    pass
+
+# Use Manufacturer key for KILO challenge/response
+USE_MFG_KEY = False
+
+laf_error_codes = {
+    0x80000000: "FAILED",
+    0x80000001: "INVALID_PARAMETER",
+    0x80000002: "INVALID_HANDLE",
+    0x80000003: "DEVICE_NOT_SUPPORTED",
+    0x80000004: "INTERNAL_ERROR",
+    0x80000005: "TIMEOUT",
+    0x8000000F: "MORE_HEADER_DATA",
+    0x80000010: "MORE_DATA",
+    0x80000011: "INVALID_DATA",
+    0x80000012: "INVALID_DATA_LENGTH",
+    0x80000013: "INVALID_PACKET",
+    0x80000016: "CRC_CHECKSUM",
+    0x80000017: "CMD_CODE",
+    0x80000018: "OUTOFMEMORY",
+    0x80000105: "INVALID_NAME",
+    0x80000106: "NOT_CONNECTED",
+    0x80000107: "CANNOT_MAKE",
+    0x80000108: "FILE_NOT_FOUND",
+    0x80000109: "NOT_ENOUGH_QUOTA",
+    0x8000010a: "ACCESS_DENIED",
+    0x8000010c: "CANCELLED",
+    0x8000010d: "CONNECTION_ABORTED",
+    0x8000010e: "CONTINUE",
+    0x8000010f: "GEN_FAILURE",
+    0x80000110: "INCORRECT_ADDRESS",
+    0x80000111: "INVALID_CATEGORY",
+    0x80000112: "REQUEST_ABORTED",
+    0x80000113: "RETRY",
+    0x80000116: "DEVICE_NOT_AVAILABLE",
+    0x80000201: "IDT_MISMATCH_MODELNAME",
+    0x80000202: "IDT_DECOMPRES_FAILED",
+    0x80000203: "IDT_INVALID_OPTION",
+    0x80000204: "IDT_DECOMPRESS_END_FAILED",
+    0x80000205: "IDT_DZ_HEADER",
+    0x80000206: "IDT_RETRY_COUNT",
+    0x80000207: "IDT_HEADER_SIZE",
+    0x80000208: "IDT_TOT_MAGIC",
+    0x80000209: "UDT_DZ_HEADER_SIZE",
+    0x80000302: "INVALID_RESPONSE",
+    0x80000305: "FAILED_INSERT_QUEUE",
+    0x80000306: "FAILED_POP_QUEUE",
+    0x80000307: "INVALID_LAF_PROTOCOL",
+    0x80000308: "ERASE_FAILED",
+    0x80000309: "WEBFLAG_RESET_FAIL",
+    0x80000401: "FLASHING_FAIL",
+    0x80000402: "SECURE_FAIL",
+    0x80000403: "BUILD_TYPE_FAIL",
+    0x80000404: "CHECK_USER_SPC",
+    0x80000405: "FBOOT_CHECK_FAIL",
+    0x80000406: "INIT_FAIL",
+    0x80000407: "FRST_FLAG_FAIL",
+    0x80000408: "POWER_OFF_FAIL",
+    0x8000040a: "PRL_READ_FAIL",
+    0x80000409: "PRL_WRITE_FAIL",
+}
+
 
 # laf crypto for KILO challenge/response
 try:
@@ -507,10 +580,11 @@ def chk_mode(pv,cr,cmode):
 
 parser = argparse.ArgumentParser(description='LG LAF Download Mode utility')
 parser.add_argument("--cr", choices=['yes', 'no'], help="Do initial challenge response (KILO CENT/METR)")
+parser.add_argument("--skip-hello", action="store_true",
+        help="Immediately send commands, skip HELO message")
 parser.add_argument('--rawshell', action="store_true",
         help="Execute shell commands as-is, needed on recent devices. "
              "CAUTION: stderr output is not redirected!")
-
 parser.add_argument("-c", "--command", help='Shell command to execute')
 parser.add_argument("--serial", metavar="PATH", dest="serial_path",
         help="Path to serial device (e.g. COM4).")

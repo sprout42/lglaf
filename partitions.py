@@ -8,10 +8,11 @@
 from __future__ import print_function,division
 from collections import OrderedDict
 from contextlib import closing, contextmanager
-import argparse, logging, os, io, struct, sys
+import argparse, logging, os, io, struct, sys, time
 import lglaf
 import gpt
 import zlib
+import usb.core, usb.util
 
 _logger = logging.getLogger("partitions")
 
@@ -38,7 +39,7 @@ def get_partitions(comm, fd_num):
     table_data = b''
     while read_offset < end_offset:
         chunksize = min(end_offset - read_offset, BLOCK_SIZE * MAX_BLOCK_SIZE)
-        data = laf_read(comm, fd_num, read_offset // BLOCK_SIZE, chunksize)
+        data, fd_num = laf_read(comm, fd_num, read_offset // BLOCK_SIZE, chunksize)
         table_data += data
         read_offset += chunksize
 
@@ -73,11 +74,46 @@ def laf_open_disk(comm):
 def laf_read(comm, fd_num, offset, size):
     """Read size bytes at the given block offset."""
     read_cmd = lglaf.make_request(b'READ', args=[fd_num, offset, size])
-    header, response = comm.call(read_cmd)
+    for attempt in range(3):
+        try:
+            header, response = comm.call(read_cmd)
+            break
+        except usb.core.USBError as e:
+            if attempt == 2:
+                raise # last attempt
+            if e.strerror == 'Overflow':
+                _logger.debug("Overflow on READ %d %d %d", fd_num, offset, size)
+                for attempt in range(3):
+                    try:
+                        comm.reset()
+                        comm._read(-1) # clear line
+                        break
+                    except usb.core.USBError:
+                        pass
+                continue
+            elif e.strerror == 'Operation timed out':
+                _logger.debug("Timeout on READ %d %d %d", fd_num, offset, size)
+                comm.close()
+                time.sleep(3)
+                comm.__init__()
+                try:
+                    lglaf.try_hello(comm)
+                except usb.core.USBError:
+                    pass
+                close_cmd = lglaf.make_request(b'CLSE', args=[fd_num])
+                comm.call(close_cmd)
+                open_cmd = lglaf.make_request(b'OPEN', body=b'\0')
+                open_header = comm.call(open_cmd)[0]
+                fd_num = read_uint32(open_header, 4)
+                read_cmd = lglaf.make_request(b'READ', args=[fd_num, offset, size])
+                continue
+            else:
+                raise # rethrow
+
     # Ensure that response fd, offset and length are sane (match the request)
     assert read_cmd[4:4+12] == header[4:4+12], "Unexpected read response"
     assert len(response) == size
-    return response
+    return response, fd_num
 
 def laf_erase(comm, fd_num, sector_start, sector_count):
     """TRIM some sectors."""
@@ -126,10 +162,20 @@ def laf_misc_write(comm, size, data):
 
 def open_local_writable(path):
     if path == '-':
-        try: return sys.stdout.buffer
-        except: return sys.stdout
+        try: return (sys.stdout.buffer,0)
+        except: return (sys.stdout,0)
     else:
-        return open(path, "wb")
+        try:
+            s = os.stat(path)
+        except OSError:
+            s = 0
+            f = open(path, "wb")
+        else:
+            s = s.st_size
+            assert not s%BLOCK_SIZE
+            f = open(path, "ab")
+        return (f,s)
+
 
 def open_local_readable(path):
     if path == '-':
@@ -167,17 +213,19 @@ def dump_partition(comm, disk_fd, local_path, part_offset, part_size, batch=Fals
     # Read offsets must be a multiple of 512 bytes, enforce this
     read_offset = BLOCK_SIZE * (part_offset // BLOCK_SIZE)
     end_offset = part_offset + part_size
-    unaligned_bytes = part_offset % BLOCK_SIZE
-    _logger.debug("Will read %d bytes at disk offset %d", part_size, part_offset)
-    if unaligned_bytes:
-        _logger.debug("Unaligned read, read will start at %d", read_offset)
 
-    with open_local_writable(local_path) as f:
+    _f,s = open_local_writable(local_path)
+    with _f as f:
+        read_offset += s
+        unaligned_bytes = read_offset % BLOCK_SIZE
+        if unaligned_bytes:
+            _logger.debug("Unaligned read, read will start at %d", read_offset)
+        _logger.debug("Will read %d bytes at disk offset %d", part_size, part_offset)
         # Offset should be aligned to block size. If not, read at most a
         # whole block and drop the leading bytes.
         if unaligned_bytes:
             chunksize = min(end_offset - read_offset, BLOCK_SIZE)
-            data = laf_read(comm, disk_fd, read_offset // BLOCK_SIZE, chunksize)
+            data, disk_fd = laf_read(comm, disk_fd, read_offset // BLOCK_SIZE, chunksize)
             f.write(data[unaligned_bytes:])
             read_offset += BLOCK_SIZE
 
@@ -186,7 +234,7 @@ def dump_partition(comm, disk_fd, local_path, part_offset, part_size, batch=Fals
 
         while read_offset < end_offset:
             chunksize = min(end_offset - read_offset, BLOCK_SIZE * MAX_BLOCK_SIZE)
-            data = laf_read(comm, disk_fd, read_offset // BLOCK_SIZE, chunksize)
+            data, disk_fd = laf_read(comm, disk_fd, read_offset // BLOCK_SIZE, chunksize)
             f.write(data)
             written += len(data)
             read_offset += chunksize
@@ -423,7 +471,6 @@ def main():
                 parser.error(e)
 
             info = get_partition_info_string(part)
-
             _logger.debug("%s", info)
 
             part_offset = part.first_lba * BLOCK_SIZE

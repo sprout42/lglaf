@@ -389,7 +389,10 @@ def write_misc_partition(comm, fd_num, local_path, part_offset, part_size, batch
 def print_progress(i, current_val, max_val):
     current_val = int(current_val / 1024)
     max_val = int(max_val / 1024)
-    print('%i:%i:%i' % (i, current_val, max_val))
+    print('%i:%i:%i' % (i, current_val, max_val), flush=True)
+    #sys.stdout.write('%i:%i:%i\n' % (i, current_val, max_val))
+    #sys.stdout.write("\r%d " % i)
+    #sys.stdout.flush()
 
 def print_human_progress(i, current_val, max_val):
     current_val = int(current_val / 1024)

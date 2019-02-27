@@ -389,13 +389,12 @@ def get_gpt_info(disk):
     'crc32_part_array': None,
     'partitions': [],
   }
-  # EDIT by tuxuser: we are only working with datachunks, not real block devices
-  # Using hardcoded LBA size for usage by LGLAF
-  #try:
-  #  blocksize = struct.unpack('i', ioctl(disk.fileno(), 4608 | 104, struct.pack('i', -1)))[0]
-  #except:
-  #  blocksize = 512
-  blocksize = 512
+  # identify the block size dynamically
+  try:
+    blocksize = struct.unpack('i', ioctl(disk.fileno(), 4608 | 104, struct.pack('i', -1)))[0]
+  except:
+    blocksize = 512
+
   try:
     info['lba_size'] = blocksize
     gptheader = read_gpt_header(disk, lba_size=blocksize)

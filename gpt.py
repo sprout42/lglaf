@@ -308,7 +308,7 @@ def read_gpt_header(fp, lba_size=512):
   data = fp.read(struct.calcsize(fmt))
   header = GPTHeader._make(struct.unpack(fmt, data))
   if header.signature != b'EFI PART':
-    raise GPTMissing('Bad GPT signature')
+    return 'Bad GPT signature'
   revision = header.revision_major + (header.revision_minor / 10)
   if revision < 1.0:
     raise GPTError('Bad GPT revision: {0}.{1}'.format(header.revision_major, header.revision_minor))
@@ -370,7 +370,7 @@ def get_mbr_info(disk):
     return None
 
 
-def get_gpt_info(disk):
+def get_gpt_info(disk, blocksize):
   check_disk_file(disk)
   disk.seek(0)
   info = {
@@ -389,12 +389,6 @@ def get_gpt_info(disk):
     'crc32_part_array': None,
     'partitions': [],
   }
-  # identify the block size dynamically
-  try:
-    blocksize = struct.unpack('i', ioctl(disk.fileno(), 4608 | 104, struct.pack('i', -1)))[0]
-  except:
-    blocksize = 512
-
   try:
     info['lba_size'] = blocksize
     gptheader = read_gpt_header(disk, lba_size=blocksize)
@@ -408,14 +402,14 @@ def get_gpt_info(disk):
     return None
 
 
-def get_disk_partitions_info(disk):
+def get_disk_partitions_info(disk, blocksize):
   check_disk_file(disk)
-  return namedtuple('DiskInfo', 'mbr, gpt')(get_mbr_info(disk), get_gpt_info(disk))
+  return namedtuple('DiskInfo', 'mbr, gpt')(get_mbr_info(disk), get_gpt_info(disk, blocksize))
 
-def show_disk_partitions_info(diskOrInfo, batch=False):
+def show_disk_partitions_info(diskOrInfo, blocksize, batch=False):
   fileUsed = None
   if hasattr(diskOrInfo, 'read'):
-    info = get_disk_partitions_info(diskOrInfo)
+    info = get_disk_partitions_info(diskOrInfo, blocksize)
   else:
     info = diskOrInfo
 

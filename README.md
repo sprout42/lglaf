@@ -1,3 +1,8 @@
+# WARNING
+
+This is currently a work-in-progress especially for WRITING
+
+
 # LGLAF.py
 LGLAF.py is a utility for communication with LG devices in Download Mode. This
 allows you to execute arbitrary shell commands on a LG phone as root.

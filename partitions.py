@@ -241,7 +241,7 @@ def list_partitions(comm, fd_num, part_filter=None, batch=False):
         except ValueError as e:
             print('Error: %s' % e)
     else:
-        gpt.show_disk_partitions_info(diskinfo, batch)
+        gpt.show_disk_partitions_info(diskinfo, BLOCK_SIZE, batch)
 
 def dump_partition(comm, disk_fd, local_path, part_offset, part_size, batch=False):
     # Read offsets must be a multiple of 4096 bytes, enforce this

@@ -521,11 +521,11 @@ def main():
                     BLOCK_SIZE = BLOCK_SIZE_EMMC
                     GPT_LBA_LEN = GPT_LBA_LEN_EMMC
                     MAX_BLOCK_SIZE = (16 * 1024 - BLOCK_SIZE) // BLOCK_SIZE
-                if check_block_size(comm, disk_fd):
-                    devtype = "EMMC"
-                else:
-                    _logger("Cannot identify the block size!")
-                    raise
+                    if check_block_size(comm, disk_fd):
+                        devtype = "EMMC"
+                    else:
+                        _logger("Cannot identify the block size!")
+                        raise
             else:
                 if args.devtype == "UFS":
                     BLOCK_SIZE = BLOCK_SIZE_UFS

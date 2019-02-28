@@ -12,7 +12,6 @@ import argparse, logging, os, io, struct, sys, time
 import lglaf
 import gpt
 import zlib
-import usb.core, usb.util
 
 _logger = logging.getLogger("partitions")
 

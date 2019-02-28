@@ -224,19 +224,34 @@ def open_local_readable(path):
     else:
         return open(path, "rb")
 
-def get_partition_info_string(part):
-    info = '#   Flags From(#s)   To(#s)     GUID/UID                             Type/Name\n'
-    info += ('{n: <3} {flags: ^5} {from_s: <10} {to_s: <10} {guid} {type}\n' + ' ' * 32 + '{uid} {name}').format(
+def get_partition_info_string(part, batch):
+    if not batch:
+        info = '#   Flags From(#s)   To(#s)     GUID/UID                             Type/Name\n'
+        info += ('{n: <3} {flags: ^5} {from_s: <10} {to_s: <10} {guid} {type}\n' + ' ' * 32 + '{uid} {name}').format(
                 n=part.index, flags=part.flags, from_s=part.first_lba, to_s=part.last_lba, guid=part.guid,
                 type=part.type, uid=part.uid, name=part.name)
+    else:
+        info = ('{name}:{start_sector}:{end_sector}').format(name=part.name, start_sector=part.first_lba, end_sector=part.last_lba)
     return info
+
+def find_misc(comm, fd_num):
+    """
+    Find the start sector of the misc partition
+    (needed for misc write)
+    """
+    diskinfo = get_partitions(comm, fd_num)
+    part = find_partition(diskinfo, "misc")
+    part_misc = get_partition_info_string(part, batch=True)
+    misc_start = part_misc.split(':')
+    _logger.debug("Found misc at disk offset %s", misc_start[1])
+    return misc_start[1]
 
 def list_partitions(comm, fd_num, part_filter=None, batch=False):
     diskinfo = get_partitions(comm, fd_num)
     if part_filter:
         try:
             part = find_partition(diskinfo, part_filter)
-            print(get_partition_info_string(part))
+            print(get_partition_info_string(part, batch))
         except ValueError as e:
             print('Error: %s' % e)
     else:
@@ -383,7 +398,8 @@ def write_misc_partition(comm, fd_num, local_path, part_offset, part_size, batch
                 _logger.debug("Will write %d bytes", length)
         # TODO: automatically detect this.
         #misc_start = 262144
-        misc_start = 43014
+        #misc_start = 43014
+        misc_start = find_misc(comm, fd_num)
         written = 0
         while write_offset < end_offset:
             # TODO: automatically get the size of misc, but it is hardcoded for now

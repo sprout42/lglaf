@@ -13,6 +13,8 @@ import lglaf
 import gpt
 import zlib
 import binascii
+try: import usb.core, usb.util
+except ImportError: pass
 
 _logger = logging.getLogger("partitions")
 

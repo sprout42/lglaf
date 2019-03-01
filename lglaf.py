@@ -354,7 +354,7 @@ class FileCommunication(Communication):
 
         # FIXME: detect it like on USB:
         self.CR_MODE = "forced"
-        self.CR_NEEDED=1
+        self.CR_NEEDED=0
 
     def _read(self, n, timeout=None):
         return self.f.read(n)

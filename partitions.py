@@ -589,7 +589,7 @@ def main():
             except ValueError as e:
                 parser.error(e)
 
-            info = get_partition_info_string(part)
+            info = get_partition_info_string(part, args.batch)
             _logger.debug("%s", info)
 
             part_offset = part.first_lba * BLOCK_SIZE

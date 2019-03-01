@@ -351,6 +351,11 @@ class FileCommunication(Communication):
             self.f = open(file_path, 'r+b', buffering=0)
         else:
             self.f = open(file_path, 'r+b')
+
+        # FIXME: detect it like on USB:
+        self.CR_MODE = "forced"
+        self.CR_NEEDED=1
+
     def _read(self, n, timeout=None):
         return self.f.read(n)
     def write(self, data):

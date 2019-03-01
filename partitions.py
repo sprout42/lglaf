@@ -115,16 +115,16 @@ def laf_open_disk(comm):
         try:
             open_header = comm.call(open_cmd)[0]
             fd_num = read_uint32(open_header, 4)
+            try:
+                yield fd_num
+            finally:
+                close_cmd = lglaf.make_request(b'CLSE', args=[fd_num])
+                if cr_needed == 1:
+                    lglaf.challenge_response(comm, 4)
+                comm.call(close_cmd)
         except:
             _logger.debug("Stopping here as the following open cmd is not available for this device:\n%s" % binascii.hexlify(bodys[cbody]))
             break
-        try:
-            yield fd_num
-        finally:
-            close_cmd = lglaf.make_request(b'CLSE', args=[fd_num])
-            if cr_needed == 1:
-                lglaf.challenge_response(comm, 4)
-            comm.call(close_cmd)
 
 def laf_read(comm, fd_num, offset, size):
     """Read size bytes at the given block offset."""

@@ -348,9 +348,9 @@ class FileCommunication(Communication):
     def __init__(self, file_path):
         super(FileCommunication, self).__init__()
         if sys.version_info[0] >= 3:
-            self.f = open(file_path, 'r+b', buffering=0)
+            self.f = open("\\\\.\\"+file_path, 'r+b', buffering=0)
         else:
-            self.f = open(file_path, 'r+b')
+            self.f = open("\\\\.\\"+file_path, 'r+b')
 
         # FIXME: detect it like on USB:
         self.CR_MODE = "forced"

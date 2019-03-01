@@ -112,8 +112,13 @@ def laf_open_disk(comm):
             lglaf.challenge_response(comm, 2)
         try:
             open_header = comm.call(open_cmd)[0]
-        except: break
-        fd_num = read_uint32(open_header, 4)
+            fd_num = read_uint32(open_header, 4)
+        except: 
+            close_cmd = lglaf.make_request(b'CLSE', args=[fd_num])
+            if cr_needed == 1:
+                lglaf.challenge_response(comm, 4)
+            comm.call(close_cmd)
+            break
         try:
             yield fd_num
         finally:

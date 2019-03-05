@@ -35,12 +35,23 @@ def check_block_size(comm,fd_num):
     read_offset = 0
     end_offset = GPT_LBA_LEN * BLOCK_SIZE
 
+    _logger.debug("check_block_size, read_offset: %i, end_offset: %i, GPT_LBA_LEN: %i, BLOCK_SIZE: %i, MAX_BLOCK_SIZE: %i" %
+                   (read_offset, end_offset, GPT_LBA_LEN, BLOCK_SIZE, MAX_BLOCK_SIZE))
+
     table_data = b''
-    while read_offset < end_offset:
-        chunksize = min(end_offset - read_offset, BLOCK_SIZE * MAX_BLOCK_SIZE)
+    if comm.protocol_version >= 0x1000008:
+        _logger.debug("Protocol based handling: %06x" % comm.protocol_version)
+        chunksize = 17408
         data, fd_num = laf_read(comm, fd_num, read_offset // BLOCK_SIZE, chunksize)
         table_data += data
         read_offset += chunksize
+    else:
+        while read_offset < end_offset:
+            chunksize = min(end_offset - read_offset, BLOCK_SIZE * MAX_BLOCK_SIZE)
+            data, fd_num = laf_read(comm, fd_num, read_offset // BLOCK_SIZE, chunksize)
+            table_data += data
+            read_offset += chunksize
+
     with io.BytesIO(table_data) as table_fd:
         signature = gpt.read_gpt_header(table_fd, BLOCK_SIZE)
         if signature[0] == b'EFI PART':
@@ -59,11 +70,18 @@ def get_partitions(comm, fd_num):
     end_offset = GPT_LBA_LEN * BLOCK_SIZE
 
     table_data = b''
-    while read_offset < end_offset:
-        chunksize = min(end_offset - read_offset, BLOCK_SIZE * MAX_BLOCK_SIZE)
+    if comm.protocol_version >= 0x1000008:
+        _logger.debug("Protocol based handling: %06x" % comm.protocol_version)
+        chunksize = 17408
         data, fd_num = laf_read(comm, fd_num, read_offset // BLOCK_SIZE, chunksize)
         table_data += data
         read_offset += chunksize
+    else:
+        while read_offset < end_offset:
+            chunksize = min(end_offset - read_offset, BLOCK_SIZE * MAX_BLOCK_SIZE)
+            data, fd_num = laf_read(comm, fd_num, read_offset // BLOCK_SIZE, chunksize)
+            table_data += data
+            read_offset += chunksize
 
     with io.BytesIO(table_data) as table_fd:
         info = gpt.get_disk_partitions_info(table_fd, BLOCK_SIZE)

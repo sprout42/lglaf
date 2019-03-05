@@ -70,6 +70,7 @@ def get_partitions(comm, fd_num):
     end_offset = GPT_LBA_LEN * BLOCK_SIZE
 
     table_data = b''
+    print(comm.protocol_version)
     if comm.protocol_version >= 0x1000008:
         _logger.debug("Protocol based handling: %06x" % comm.protocol_version)
         chunksize = 17408

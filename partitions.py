@@ -523,7 +523,11 @@ def main():
     with closing(comm):
 
         lglaf.try_hello(comm)
-        _logger.debug("Using Protocol version: 0x%x" % comm.protocol_version)
+        if comm.protocol_negotiation:
+            lglaf.try_hello(comm, DEV_PROTOCOL_VERSION=comm.protocol_version)
+            _logger.debug("Negotiated protocol version: 0x%x" % comm.protocol_version)
+        else:
+            _logger.debug("Used protocol version: %07x" % comm.protocol_version)
 
         with laf_open_disk(comm) as disk_fd:
             # detect the device type and based on that set the block size and GPT LBA length

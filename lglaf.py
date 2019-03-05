@@ -306,6 +306,7 @@ class Communication(object):
     def __init__(self):
         self.read_buffer = b''
         self.protocol_version = 0
+        self.protocol_negotiation = False
     def read(self, n, timeout=None):
         """Reads exactly n bytes."""
         need = n - len(self.read_buffer)
@@ -476,7 +477,7 @@ def challenge_response(comm, mode):
     _logger.debug("KILO METR Response -> Header: %s, Body: %s" % (
         binascii.hexlify(metr_header), binascii.hexlify(metr_response)))
 
-def try_hello(comm):
+def try_hello(comm, DEV_PROTOCOL_VERSION=BASE_PROTOCOL_VERSION):
     """
     Tests whether the device speaks the expected protocol. If desynchronization
     is detected, tries to read as much data as possible.
@@ -484,8 +485,13 @@ def try_hello(comm):
     # Wait for at most 5 seconds for a response... it shouldn't take that long
     # and otherwise something is wrong.
     HELLO_READ_TIMEOUT = 5000
-
-    hello_proto_version = struct.pack("<I", BASE_PROTOCOL_VERSION)
+    _logger.debug("BASE_PROTOCOL_VERSION: %06x" % BASE_PROTOCOL_VERSION)
+    _logger.debug("DEV_PROTOCOL_VERSION: %06x" % DEV_PROTOCOL_VERSION)
+    if DEV_PROTOCOL_VERSION != 0x0 and DEV_PROTOCOL_VERSION != BASE_PROTOCOL_VERSION:
+        _logger.debug("Switching protocol to %06x" % DEV_PROTOCOL_VERSION)
+        hello_proto_version = struct.pack("<I", DEV_PROTOCOL_VERSION)
+    else:
+        hello_proto_version = struct.pack("<I", BASE_PROTOCOL_VERSION)
     hello_request = make_request(b'HELO', args=[hello_proto_version])
     comm.write(hello_request)
     data = comm.read(0x20, timeout=HELLO_READ_TIMEOUT)
@@ -503,7 +509,9 @@ def try_hello(comm):
         # Just to be sure, send another HELO request.
         comm.call(hello_request)
     # Assign received protocol version
-    comm.protocol_version = struct.unpack_from('<I', data, 0x4)[0]
+    comm.protocol_version = struct.unpack_from('<I', data, 0x8)[0]
+    if comm.protocol_version != BASE_PROTOCOL_VERSION:
+        comm.protocol_negotiation = True
 
 def detect_serial_path():
     try:
@@ -609,9 +617,14 @@ def main():
         comm = FileCommunication(args.serial_path)
     else:
         comm = autodetect_device(args.cr)
+    
+    _logger.debug("Trying protocol version: %07x" % comm.protocol_version)
+    try_hello(comm)
+    if comm.protocol_negotiation:
+        try_hello(comm, DEV_PROTOCOL_VERSION=comm.protocol_version)
+        _logger.debug("Negotiated protocol version: 0x%x" % comm.protocol_version)
 
     with closing(comm):
-        try_hello(comm)
         _logger.debug("Using Protocol version: 0x%x" % comm.protocol_version)
         _logger.debug("CR detection: %i" % comm.CR_NEEDED)
         _logger.debug("Hello done, proceeding with commands")

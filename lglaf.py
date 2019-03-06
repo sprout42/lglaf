@@ -618,7 +618,7 @@ def main():
     else:
         comm = autodetect_device(args.cr)
     
-    _logger.debug("Trying protocol version: %07x" % comm.protocol_version)
+    _logger.debug("Trying protocol version: %07x" % BASE_PROTOCOL_VERSION)
     try_hello(comm)
     if comm.protocol_negotiation:
         try_hello(comm, DEV_PROTOCOL_VERSION=comm.protocol_version)

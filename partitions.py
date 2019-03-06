@@ -39,7 +39,7 @@ def check_block_size(comm,fd_num):
                    (read_offset, end_offset, GPT_LBA_LEN, BLOCK_SIZE, MAX_BLOCK_SIZE))
 
     table_data = b''
-    if comm.protocol_version >= 0x1000008:
+    if hex(comm.protocol_version) >= '0x1000008':
         _logger.debug("Protocol based handling: %06x" % comm.protocol_version)
         chunksize = 17408
         data, fd_num = laf_read(comm, fd_num, read_offset // BLOCK_SIZE, chunksize)
@@ -70,8 +70,7 @@ def get_partitions(comm, fd_num):
     end_offset = GPT_LBA_LEN * BLOCK_SIZE
 
     table_data = b''
-    print(comm.protocol_version)
-    if comm.protocol_version >= 0x1000008:
+    if hex (comm.protocol_version) >= '0x1000008':
         _logger.debug("Protocol based handling: %06x" % comm.protocol_version)
         chunksize = 17408
         data, fd_num = laf_read(comm, fd_num, read_offset // BLOCK_SIZE, chunksize)
@@ -103,7 +102,7 @@ def laf_open_disk(comm):
     
     def_body = b'\0'
 
-    bodys = [def_body, sda_body]
+    bodys = [sda_body]
 
     for cbody in range(len(bodys)):
         open_cmd = lglaf.make_request(b'OPEN', body=bodys[cbody])
@@ -350,7 +349,7 @@ def write_partition(comm, disk_fd, local_path, part_offset, part_size, batch):
     assert part_offset >= GPT_LBA_LEN * BLOCK_SIZE, "Will not allow overwriting GPT scheme"
 
     # disable RESTORE until newer LAF communication is fixed! this will not work atm!
-    if comm.protocol_version == 0x1000001:
+    if hex(comm.protocol_version) == '0x1000001':
       with open_local_readable(local_path) as f:
         try:
             length = f.seek(0, 2)

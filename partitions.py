@@ -278,16 +278,42 @@ def find_misc(comm, fd_num):
     _logger.debug("Found misc at disk offset %s", misc_start[1])
     return misc_start[1]
 
+def dict_partition_table(diskinfo, showheader=True):
+    """
+    catch the partition listing and return the result (dict)
+    """
+    part_table = {}
+    part_table = gpt.show_disk_partitions_info(diskinfo, BLOCK_SIZE, batch=True, fmtdict=True, showheader=showheader)
+    return part_table
+
+def print_partition(part, pdict, batch=False):
+    """
+    will print the partition(s) based on batch or not differently
+    requires a dict to work with
+    """
+    if batch:
+        print(('{name}:{pt[p_no]}:{pt[p_first_lba]}:{pt[p_last_lba]}:{pt[p_uid]}:{pt[p_size]}').format(name=part,pt=pdict))
+    else:
+        print(('{pt[p_no]: <3} {pt[p_first_lba]: <10} {pt[p_last_lba]: <10} {pt[p_guid]} {pt[p_type]}\n' + ' ' * 26 + '{pt[p_uid]} {name}').format(name=part,pt=pdict))
+
 def list_partitions(comm, fd_num, part_filter=None, batch=False):
     diskinfo = get_partitions(comm, fd_num)
-    if part_filter:
-        try:
-            part = find_partition(diskinfo, part_filter)
-            print(get_partition_info_string(part, batch))
-        except ValueError as e:
-            print('Error: %s' % e)
+    part_table = {}
+    if batch:
+        part_table = dict_partition_table(diskinfo, showheader=False)
     else:
-        gpt.show_disk_partitions_info(diskinfo, BLOCK_SIZE, batch)
+        part_table = dict_partition_table(diskinfo)
+
+    if part_filter:
+        # list only 1 partition
+        if part_filter in part_table:
+            print_partition(part_filter,part_table[part_filter], batch)
+        else:
+            print("Error: Partition %s not found" % part_filter)
+    else:
+        # list all partitions
+        for k,v in part_table.items():
+            print_partition(k,part_table[k], batch)
 
 def dump_partition(comm, disk_fd, local_path, part_offset, part_size, batch=False):
     # Read offsets must be a multiple of 4096 bytes, enforce this

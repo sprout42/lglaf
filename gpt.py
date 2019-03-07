@@ -406,7 +406,7 @@ def get_disk_partitions_info(disk, blocksize):
   check_disk_file(disk)
   return namedtuple('DiskInfo', 'mbr, gpt')(get_mbr_info(disk), get_gpt_info(disk, blocksize))
 
-def show_disk_partitions_info(diskOrInfo, blocksize, batch=False, fmtdict=False, showheader=True):
+def show_disk_partitions_info(diskOrInfo, blocksize, dev, batch=False, fmtdict=False, showheader=True):
   fileUsed = None
   if hasattr(diskOrInfo, 'read'):
     info = get_disk_partitions_info(diskOrInfo, blocksize)
@@ -429,6 +429,7 @@ def show_disk_partitions_info(diskOrInfo, blocksize, batch=False, fmtdict=False,
     t_dict ={}
     t_header =  'GPT Header' + \
                 '\nDisk GUID: {0}'.format(gpt.disk_guid) + \
+                '\nDevice: {0}'.format(dev) + \
                 '\nLBA size (sector size): {0}'.format(gpt.lba_size) + \
                 '\nGPT First LBA: {0}'.format(gpt.current_lba) + \
                 '\nGPT Last  LBA: {0}'.format(gpt.backup_lba) + \

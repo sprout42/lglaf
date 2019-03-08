@@ -508,9 +508,9 @@ def try_hello(comm, DEV_PROTOCOL_VERSION=BASE_PROTOCOL_VERSION):
             data = comm.read(0x20, timeout=HELLO_READ_TIMEOUT)
         # Just to be sure, send another HELO request.
         comm.call(hello_request)
+
     # Assign received (min) protocol version
     protocol_version = struct.unpack_from('<I', data, 0x8)[0]
-
     # beware: the comparision is not 5 zeros but 6 when there is no min version reported
     if hex(protocol_version) == '0x10000001':
         _logger.debug("No minimum version reported so we will use the default one (%x)" % BASE_PROTOCOL_VERSION)
@@ -518,7 +518,7 @@ def try_hello(comm, DEV_PROTOCOL_VERSION=BASE_PROTOCOL_VERSION):
     else:
         _logger.debug("Using minimum version reported by lafd")
         comm.protocol_version = protocol_version
-
+    # inform when a negotiation is required
     if comm.protocol_version != BASE_PROTOCOL_VERSION:
         comm.protocol_negotiation = True
 
@@ -611,7 +611,7 @@ parser.add_argument("-c", "--command", help='Shell command to execute')
 parser.add_argument("--serial", metavar="PATH", dest="serial_path",
         help="Path to serial device (e.g. COM4).")
 parser.add_argument("--debug", action='store_true', help="Enable debug messages")
-parser.add_argument("--proto", action='store_true', help="Just print LAF protocol version")
+parser.add_argument("--showproto", action='store_true', help="Just print the used LAF protocol version. Includes protocol negotiation.")
 
 def main():
     args = parser.parse_args()
@@ -638,7 +638,7 @@ def main():
         _logger.debug("CR detection: %i" % comm.CR_NEEDED)
         _logger.debug("Hello done, proceeding with commands")
 
-        if args.proto:
+        if args.showproto:
             print("%x" % comm.protocol_version)
         else:    
           for command in get_commands(args.command):

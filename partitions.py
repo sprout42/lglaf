@@ -514,7 +514,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--cr", choices=['yes', 'no'], help="Do initial challenge response (KILO CENT/METR)")
 parser.add_argument("--debug", action='store_true', help="Enable debug messages")
 parser.add_argument("--list", action='store_true',
-        help='List available partitions')
+        help='List available partitions. Define a partion name to filter.')
 parser.add_argument("--dump", metavar="LOCAL_PATH",
         help="Dump partition to file ('-' for stdout)")
 parser.add_argument("--restore", metavar="LOCAL_PATH",
@@ -642,7 +642,9 @@ def main():
             _logger.debug("GPT_LBA_LEN: %s", GPT_LBA_LEN)
             _logger.debug("BLOCK_SIZE: %s (%s), MAX_BLOCK_SIZE: %s", BLOCK_SIZE, devtype, MAX_BLOCK_SIZE)
 
-            if args.list:
+            # sda and default are identical - for reading at least.
+            # we skip sda for reading but not for anything else
+            if args.list and dev != "sda":
                 if args.batch:
                     list_partitions(comm, disk_fd, dev, args.partition, True)
                     close_fd(comm,disk_fd)

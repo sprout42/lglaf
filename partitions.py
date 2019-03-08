@@ -591,7 +591,7 @@ def main():
         for dev,opencmd in disk_opener.items():
           disk_fd = laf_open_disk(comm, opencmd)
           if disk_fd: 
-            _logger.debug("opened a disk_fd: %i" % disk_fd)
+            _logger.debug("opened a disk_fd: %i on %s" % (disk_fd, dev))
             # detect the device type and based on that set the block size and GPT LBA length
             # atm we know just 2 block sizes, one for EMMC devices and one for UFS
             # as those will likely not change in the near future I hardcode both here
@@ -651,6 +651,9 @@ def main():
                 else:
                     list_partitions(comm, disk_fd, dev, args.partition, False)
                     close_fd(comm,disk_fd)
+                continue
+            elif args.list and dev == "sda":
+                _logger.debug("Skipping sda device for partition listing (result is identical to the default opener)")
                 continue
 
             diskinfo = get_partitions(comm, disk_fd)

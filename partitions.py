@@ -198,7 +198,7 @@ def laf_copy(comm, fd_num, src_offset, size, dst_offset):
     comm.call(copy_cmd)
     # Response is unknown at this time
 
-def laf_sign(comm, fd_num, sign_payload):
+def laf_sign(comm, sign_payload):
     """Sends the SIGN payload for signed writing"""
     sign_cmd = lglaf.make_request(b'SIGN', body=sign_payload)
     comm.call(sign_cmd)
@@ -653,7 +653,7 @@ def main():
             if args.sign:
                 fsig = open(args.sign, 'rb')
                 sign_payload = fsig.read()
-                laf_sign(comm, disk_fd, sign_payload)
+                laf_sign(comm, sign_payload)
 
             # sda and default are identical - for reading at least.
             # we skip sda for reading but not for anything else

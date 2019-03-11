@@ -198,6 +198,12 @@ def laf_copy(comm, fd_num, src_offset, size, dst_offset):
     comm.call(copy_cmd)
     # Response is unknown at this time
 
+def laf_sign(comm, fd_num, sign_payload):
+    """Sends the SIGN payload for signed writing"""
+    sign_cmd = lglaf.make_request(b'SIGN', body=sign_payload)
+    comm.call(sign_cmd)
+    #TODO: verify response
+
 def laf_ioct(comm, fd_num, param):
     """This manipulates ioctl for a given file descriptor"""
     """The only known IOCT param is 0x1261 which enables write"""
@@ -517,6 +523,8 @@ parser.add_argument("--list", action='store_true',
         help='List available partitions. Define a partion name to filter.')
 parser.add_argument("--dump", metavar="LOCAL_PATH",
         help="Dump partition to file ('-' for stdout)")
+parser.add_argument("--sign", metavar="LOCAL_PATH",
+        help="Send sign payload for signed writing ('-' for stdin)")
 parser.add_argument("--restore", metavar="LOCAL_PATH",
         help="Write file to partition on device ('-' for stdin)")
 parser.add_argument("--restoremisc", metavar="LOCAL_PATH",
@@ -641,6 +649,11 @@ def main():
 
             _logger.debug("GPT_LBA_LEN: %s", GPT_LBA_LEN)
             _logger.debug("BLOCK_SIZE: %s (%s), MAX_BLOCK_SIZE: %s", BLOCK_SIZE, devtype, MAX_BLOCK_SIZE)
+
+            if args.sign:
+                fsig = open(args.sign, 'rb')
+                sign_payload = fsig.read()
+                laf_sign(comm, disk_fd, sign_payload)
 
             # sda and default are identical - for reading at least.
             # we skip sda for reading but not for anything else

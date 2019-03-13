@@ -446,8 +446,7 @@ def show_disk_partitions_info(diskOrInfo, blocksize, dev, batch=False, fmtdict=F
           else:
             print(('{n: <3} {flags: ^5} {from_s: <10} {to_s: <10} {guid} {type}\n' + ' ' * 32 + '{uid} {name}').format(n=part.index, flags=part.flags, from_s=part.first_lba, to_s=part.last_lba, guid=part.guid, type=part.type, uid=part.uid, name=part.name))
     if fmtdict:
-      if showheader: print(t_header)
-      return t_dict
+      return t_header,t_dict
   else:
     print('No GPT')
   if fileUsed:

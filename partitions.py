@@ -275,8 +275,8 @@ def dict_partition_table(diskinfo, dev, showheader=True):
     catch the partition listing and return the result (dict)
     """
     part_table = {}
-    part_table = gpt.show_disk_partitions_info(diskinfo, BLOCK_SIZE, dev, batch=True, fmtdict=True, showheader=showheader)
-    return part_table
+    part_header,part_table = gpt.show_disk_partitions_info(diskinfo, BLOCK_SIZE, dev, batch=True, fmtdict=True, showheader=showheader)
+    return part_header,part_table
 
 def print_partition(part, pdict, batch=False):
     """
@@ -288,24 +288,27 @@ def print_partition(part, pdict, batch=False):
     else:
         print(('{pt[p_no]: <3} {pt[p_first_lba]: <10} {pt[p_last_lba]: <10} {pt[p_guid]} {pt[p_type]}\n' + ' ' * 26 + '{pt[p_uid]} {name}').format(name=part,pt=pdict))
 
-def list_partitions(comm, fd_num, dev, part_filter=None, batch=False):
-    diskinfo = get_partitions(comm, fd_num)
-    part_table = {}
-    if batch:
-        part_table = dict_partition_table(diskinfo, dev, showheader=False)
-    else:
-        part_table = dict_partition_table(diskinfo, dev)
-
-    if part_filter:
-        # list only 1 partition
-        if part_filter in part_table:
-            print_partition(part_filter,part_table[part_filter], batch)
-        else:
-            print("Error: Partition %s not found" % part_filter)
-    else:
-        # list all partitions
-        for k,v in part_table.items():
-            print_partition(k,part_table[k], batch)
+def list_partitions(part_header, part_table, part_filter=None, batch=False):
+	if part_filter:
+            # list only 1 partition
+            for d,v in part_table.items():
+                if part_filter in v:
+                    p_found = True
+                    break
+                else:
+                    _logger.debug("Partition %s not found in %s.. continue search on next device" % (part_filter, d))
+                    continue
+            if p_found:
+                print_partition(part_filter,v[part_filter], batch)
+            else:
+                print("Error: Partition %s not found" % part_filter)
+	else:
+            # list all partitions
+	    for d,v in part_table.items():
+                if not batch: print(part_header[d])
+                for p in v.items():
+                    part = p[0]
+                    print_partition(part, part_table[d][part], batch)
 
 def dump_partition(comm, disk_fd, local_path, part_offset, part_size, batch=False):
     # Read offsets must be a multiple of 4096 bytes, enforce this
@@ -596,6 +599,9 @@ def main():
         elif args.lun == "sdg":
             lun = sdg_body
 
+        part_header = {}
+        part_table = {}
+
         for dev,opencmd in disk_opener.items():
           disk_fd = laf_open_disk(comm, opencmd)
           if disk_fd: 
@@ -657,31 +663,41 @@ def main():
 
             # sda and default are identical - for reading at least.
             # we skip sda for reading but not for anything else
-            if args.list and dev != "sda":
+            if dev != "sda":
+                diskinfo = get_partitions(comm, disk_fd)
                 if args.batch:
-                    list_partitions(comm, disk_fd, dev, args.partition, True)
-                    close_fd(comm,disk_fd)
+                    part_header[dev],part_table[dev] = dict_partition_table(diskinfo, dev, showheader=False)
                 else:
-                    list_partitions(comm, disk_fd, dev, args.partition, False)
-                    close_fd(comm,disk_fd)
-                continue
-            elif args.list and dev == "sda":
-                _logger.debug("Skipping sda device for partition listing (result is identical to the default opener)")
-                continue
+                    part_header[dev],part_table[dev] = dict_partition_table(diskinfo, dev, showheader=True)
+            close_fd(comm,disk_fd)
+          else: break
 
-            diskinfo = get_partitions(comm, disk_fd)
-            try:
-                part = find_partition(diskinfo, args.partition)
-            except ValueError as e:
-                parser.error(e)
+        if args.list:
+            list_partitions(part_header, part_table, args.partition, args.batch)
+        else:
+            # filter partition table dict for given part name
+            # and identify the required disk opener
+            for dev,p in part_table.items():
+                try:
+                    if part_table[dev][args.partition]:
+                        filtered_ptable = part_table[dev][args.partition]
+                        part_opener = disk_opener[dev]
+                        break
+                    else: continue
+                except KeyError:
+                    continue
+                except ValueError as e:
+                    parser.error(e)
 
-            info = get_partition_info_string(part, args.batch)
-            _logger.debug("%s", info)
+            _logger.debug("Found partition on device: %s" % dev)
+            part_offset = filtered_ptable['p_first_lba'] * BLOCK_SIZE
+            part_size = (filtered_ptable['p_last_lba'] - (filtered_ptable['p_first_lba'] - 1)) * BLOCK_SIZE
 
-            part_offset = part.first_lba * BLOCK_SIZE
-            part_size = (part.last_lba - (part.first_lba - 1)) * BLOCK_SIZE
+            _logger.debug("part offset: %i, size: %i", part_offset, part_size)
+            _logger.debug("opener: %s" % part_opener)
 
-            _logger.debug("%s", info)
+            disk_fd = laf_open_disk(comm, part_opener)
+            _logger.debug("opened a disk_fd: %i on %s" % (disk_fd, dev))
 
             if args.dump:
                 if not args.batch:
@@ -703,8 +719,6 @@ def main():
                     wipe_partition(comm, disk_fd, part_offset, part_size, False)
                 else:
                     wipe_partition(comm, disk_fd, part_offset, part_size, True)
-            close_fd(comm,disk_fd)
-          else: break
 
 if __name__ == '__main__':
     try:

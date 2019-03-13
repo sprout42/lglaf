@@ -299,6 +299,7 @@ def list_partitions(part_header, part_table, part_filter=None, batch=False):
                     _logger.debug("Partition %s not found in %s.. continue search on next device" % (part_filter, d))
                     continue
             if p_found:
+                if not batch: print(part_header[d])
                 print_partition(part_filter,v[part_filter], batch)
             else:
                 print("Error: Partition %s not found" % part_filter)

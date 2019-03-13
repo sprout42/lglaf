@@ -308,9 +308,22 @@ Manipulate boot partition table (TODO: document this)
 ### FAIL
 Dummy command.
 
-### new versions
+## new versions (protocol >= 100004)
+
 TODO: document these commands added in some version:
 TOFF, COPY, SLEI, SIGN
+
+### GABS (A/B devices)
+
+get active boot slot (see SABS)
+
+### SABS (A/B devices)
+
+set the active boot slot on next boot.
+
+Arguments (arg1):
+ * 0 == A Slot
+ * 1 == B Slot
 
 
 ## HDLC commands

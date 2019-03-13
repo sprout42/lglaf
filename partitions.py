@@ -131,7 +131,11 @@ def laf_open_disk(comm,opener):
 
 def laf_read(comm, fd_num, offset, size):
     """Read size bytes at the given block offset."""
-    read_cmd = lglaf.make_request(b'READ', args=[fd_num, offset, size])
+    try:
+        read_cmd = lglaf.make_request(b'READ', args=[fd_num, offset, size])
+    except:
+        close_fd(comm,fd_num)
+
     for attempt in range(3):
         try:
             header, response = comm.call(read_cmd)
@@ -290,6 +294,7 @@ def print_partition(part, pdict, batch=False):
 
 def list_partitions(part_header, part_table, part_filter=None, batch=False):
 	if part_filter:
+            p_found = False
             # list only 1 partition
             for d,v in part_table.items():
                 if part_filter in v:
@@ -701,10 +706,7 @@ def main():
             _logger.debug("opened a disk_fd: %i on %s" % (disk_fd, dev))
 
             if args.dump:
-                if not args.batch:
-                    dump_partition(comm, disk_fd, args.dump, part_offset, part_size, False)
-                else:
-                    dump_partition(comm, disk_fd, args.dump, part_offset, part_size, True)
+                dump_partition(comm, disk_fd, args.dump, part_offset, part_size, args.batch)
             elif args.restore:
                 if not args.batch:
                     write_partition(comm, disk_fd, args.restore, part_offset, part_size, False)
@@ -720,6 +722,7 @@ def main():
                     wipe_partition(comm, disk_fd, part_offset, part_size, False)
                 else:
                     wipe_partition(comm, disk_fd, part_offset, part_size, True)
+            close_fd(comm,disk_fd)
 
 if __name__ == '__main__':
     try:

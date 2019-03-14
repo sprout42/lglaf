@@ -511,10 +511,10 @@ def try_hello(comm, DEV_PROTOCOL_VERSION=BASE_PROTOCOL_VERSION):
 
     # Assign received (min) protocol version
     protocol_version = struct.unpack_from('<I', data, 0x8)[0]
-    # beware: the comparision is not 5 zeros but 6 when there is no min version reported
-    if hex(protocol_version) >= '0x10000000':
-        _logger.debug("No minimum version reported (%x) so we will use the default one (%x)" % (protocol_version, BASE_PROTOCOL_VERSION))
-        comm.protocol_version = 0x1000001
+    # when there is no min version reported force the oldest one
+    if protocol_version >= 268435457:
+        _logger.debug("No minimum version reported (hex: %x / bytes: %i) so we will use the default one (%x)" % (protocol_version, protocol_version, BASE_PROTOCOL_VERSION))
+        comm.protocol_version = BASE_PROTOCOL_VERSION
     else:
         _logger.debug("Using minimum version reported by lafd")
         comm.protocol_version = protocol_version

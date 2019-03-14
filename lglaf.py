@@ -117,6 +117,7 @@ USE_MFG_KEY = False
 # but if for any reason you want to enforce a specific version
 # start lglaf with "--proto" to force another version
 BASE_PROTOCOL_VERSION = 0x1000001
+DEFAULT_PROTOCOL_VERSION = BASE_PROTOCOL_VERSION
 
 # all product ids which requires challenge response / KILO
 kilo_lg_product_ids = {
@@ -488,6 +489,7 @@ def try_hello(comm, DEV_PROTOCOL_VERSION=0x0):
     """
     # Wait for at most 5 seconds for a response... it shouldn't take that long
     # and otherwise something is wrong.
+    no_negotiation = False
     HELLO_READ_TIMEOUT = 5000
     _logger.debug("BASE_PROTOCOL_VERSION: %06x" % BASE_PROTOCOL_VERSION)
     _logger.debug("DEV_PROTOCOL_VERSION: %06x" % DEV_PROTOCOL_VERSION)
@@ -519,11 +521,18 @@ def try_hello(comm, DEV_PROTOCOL_VERSION=0x0):
     if protocol_version >= 268435457:
         _logger.debug("No minimum version reported (hex: %x / bytes: %i) so we will use the predefined one (%x)" % (protocol_version, protocol_version, BASE_PROTOCOL_VERSION))
         comm.protocol_version = BASE_PROTOCOL_VERSION
+        no_negotiation = True
     else:
-        _logger.debug("Using minimum version reported by lafd")
+        _logger.debug("Switching to minimum version reported by lafd")
         comm.protocol_version = protocol_version
+
     # inform when a negotiation is required
-    if comm.protocol_version != BASE_PROTOCOL_VERSION:
+    if no_negotiation or BASE_PROTOCOL_VERSION != DEFAULT_PROTOCOL_VERSION:
+        _logger.debug("Negotiation skipped")
+        comm.protocol_version = BASE_PROTOCOL_VERSION
+        comm.protocol_negotiation = False
+    else:
+        _logger.debug("Negotiation in-use")
         comm.protocol_negotiation = True
 
 def detect_serial_path():

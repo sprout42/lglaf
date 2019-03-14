@@ -325,6 +325,17 @@ Arguments (arg1):
  * 0 == A Slot
  * 1 == B Slot
 
+### RGPT
+
+rollback GPT. Not sure of arguments yet.
+
+#### FTRI
+
+Compare model in payload to /SKUTable.cfg. My guess is this is used to stop LG UP from cross flashing. Useless for lglaf as far as I can tell.
+
+### ERRO
+
+Appears to restart lafd. 
 
 ## HDLC commands
 These are sent through the same interface, but have a different structure:

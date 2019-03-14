@@ -111,7 +111,11 @@ except ImportError:
 
 # Use Manufacturer key for KILO challenge/response
 USE_MFG_KEY = False
-# HELO command always sends BASE Protocol version
+
+# The base protocol version. Do *not* change this!
+# lglaf will auto negotiate the minimal protocol version for you
+# but if for any reason you want to enforce a specific version
+# start lglaf with "--proto" to force another version
 BASE_PROTOCOL_VERSION = 0x1000001
 
 # all product ids which requires challenge response / KILO
@@ -477,7 +481,7 @@ def challenge_response(comm, mode):
     _logger.debug("KILO METR Response -> Header: %s, Body: %s" % (
         binascii.hexlify(metr_header), binascii.hexlify(metr_response)))
 
-def try_hello(comm, DEV_PROTOCOL_VERSION=BASE_PROTOCOL_VERSION):
+def try_hello(comm, DEV_PROTOCOL_VERSION=0x0):
     """
     Tests whether the device speaks the expected protocol. If desynchronization
     is detected, tries to read as much data as possible.
@@ -513,7 +517,7 @@ def try_hello(comm, DEV_PROTOCOL_VERSION=BASE_PROTOCOL_VERSION):
     protocol_version = struct.unpack_from('<I', data, 0x8)[0]
     # when there is no min version reported force the oldest one
     if protocol_version >= 268435457:
-        _logger.debug("No minimum version reported (hex: %x / bytes: %i) so we will use the default one (%x)" % (protocol_version, protocol_version, BASE_PROTOCOL_VERSION))
+        _logger.debug("No minimum version reported (hex: %x / bytes: %i) so we will use the predefined one (%x)" % (protocol_version, protocol_version, BASE_PROTOCOL_VERSION))
         comm.protocol_version = BASE_PROTOCOL_VERSION
     else:
         _logger.debug("Using minimum version reported by lafd")
@@ -600,7 +604,16 @@ def chk_mode(pv,cr,cmode):
         cr_mode = 1
     return cr_mode
 
-parser = argparse.ArgumentParser(description='LG LAF Download Mode utility')
+
+class SmartFormatter(argparse.HelpFormatter):
+
+    def _split_lines(self, text, width):
+        if text.startswith('F|'):
+            return text[2:].splitlines()  
+        # this is the RawTextHelpFormatter._split_lines
+        return argparse.HelpFormatter._split_lines(self, text, width)
+
+parser = argparse.ArgumentParser(description='LG LAF Download Mode utility', formatter_class=SmartFormatter)
 parser.add_argument("--cr", choices=['yes', 'no'], help="Do initial challenge response (KILO CENT/METR)")
 parser.add_argument("--skip-hello", action="store_true",
         help="Immediately send commands, skip HELO message")
@@ -612,6 +625,11 @@ parser.add_argument("--serial", metavar="PATH", dest="serial_path",
         help="Path to serial device (e.g. COM4).")
 parser.add_argument("--debug", action='store_true', help="Enable debug messages")
 parser.add_argument("--showproto", action='store_true', help="Just print the used LAF protocol version. Includes protocol negotiation.")
+parser.add_argument("--proto", nargs='?',
+        help="F|Forces a specific protocol version, skips protocol negotiation.\n \
+Format:\n\
+--proto 0x1000003 for version 3\n\
+--proto 0x1000018 for version 18")
 
 def main():
     args = parser.parse_args()
@@ -622,13 +640,24 @@ def main():
     try: stdout_bin = sys.stdout.buffer
     except: stdout_bin = sys.stdout
 
+    global BASE_PROTOCOL_VERSION
+    if args.proto:
+        pattern = re.compile("^0x1([0-9]{6,6})$")
+        if not pattern.match(args.proto):
+            _logger.error("Wrong format (%s) for protocol version! Check --help." % args.proto)
+            return
+        hex_proto = int(args.proto,16)
+        _logger.debug("WARNING: Forcing protocol to %x" % hex_proto)
+        BASE_PROTOCOL_VERSION = hex_proto
+    DEV_PROTOCOL_VERSION = BASE_PROTOCOL_VERSION
+
     if args.serial_path:
         comm = FileCommunication(args.serial_path)
     else:
         comm = autodetect_device(args.cr)
     
-    _logger.debug("Trying protocol version: %07x" % BASE_PROTOCOL_VERSION)
-    try_hello(comm)
+    _logger.debug("Trying protocol version: %07x" % DEV_PROTOCOL_VERSION)
+    try_hello(comm, DEV_PROTOCOL_VERSION)
     if comm.protocol_negotiation:
         try_hello(comm, DEV_PROTOCOL_VERSION=comm.protocol_version)
         _logger.debug("Negotiated protocol version: 0x%x" % comm.protocol_version)

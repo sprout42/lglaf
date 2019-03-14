@@ -8,7 +8,7 @@
 from __future__ import print_function,division
 from collections import OrderedDict
 from contextlib import closing, contextmanager
-import argparse, logging, os, io, struct, sys, time
+import argparse, logging, os, io, struct, sys, time, re
 import lglaf
 import gpt
 import zlib
@@ -525,7 +525,15 @@ def wipe_partition(comm, disk_fd, part_offset, part_size, batch):
     else:
         print("TRIM ok:", sector_start, sector_count, human_readable(part_size))
 
-parser = argparse.ArgumentParser()
+class SmartFormatter(argparse.HelpFormatter):
+
+    def _split_lines(self, text, width):
+        if text.startswith('F|'):
+            return text[2:].splitlines()  
+        # this is the RawTextHelpFormatter._split_lines
+        return argparse.HelpFormatter._split_lines(self, text, width)
+
+parser = argparse.ArgumentParser(formatter_class=SmartFormatter)
 parser.add_argument("--cr", choices=['yes', 'no'], help="Do initial challenge response (KILO CENT/METR)")
 parser.add_argument("--debug", action='store_true', help="Enable debug messages")
 parser.add_argument("--list", action='store_true',
@@ -551,6 +559,11 @@ parser.add_argument("--devtype", choices=['UFS', 'EMMC'],
         help="Force the device type (UFS or EMMC)")
 parser.add_argument("--lun", choices=['sda', 'sdb', 'sdc', 'sdd', 'sde', 'sdf', 'sdg'],
         help="Specify which lun to work with on UFS devices")
+parser.add_argument("--proto", nargs='?',
+        help="F|Forces a specific protocol version, skips protocol negotiation.\n \
+Format:\n\
+--proto 0x1000003 for version 3\n\
+--proto 0x1000018 for version 18")
 
 def close_fd(comm, fd_num):
     """
@@ -577,10 +590,19 @@ def main():
     if args.partition and args.partition.isdigit():
         args.partition = int(args.partition)
 
+    if args.proto:
+        pattern = re.compile("^0x1([0-9]{6,6})$")
+        if not pattern.match(args.proto):
+            _logger.error("Wrong format (%s) for protocol version! Check --help." % args.proto)
+            return
+        hex_proto = int(args.proto,16)
+        _logger.warning("Forcing protocol to %x" % hex_proto)
+        lglaf.BASE_PROTOCOL_VERSION = hex_proto
+
     comm = lglaf.autodetect_device(args.cr)
     with closing(comm):
 
-        lglaf.try_hello(comm)
+        lglaf.try_hello(comm, lglaf.BASE_PROTOCOL_VERSION)
         if comm.protocol_negotiation:
             lglaf.try_hello(comm, DEV_PROTOCOL_VERSION=comm.protocol_version)
             _logger.debug("Negotiated protocol version: 0x%x" % comm.protocol_version)

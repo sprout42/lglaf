@@ -23,7 +23,7 @@ Contents of this repository:
 ## Requirements
 LGLAF.py depends on:
 
- - Python 2.7 or 3: https://www.python.org/
+ - Python 3: https://www.python.org/
  - (Windows) LG driver,
    [LGMobileDriver\_WHQL\_Ver\_4.2.0.exe](http://oceanhost.eu/wylc5rg7a8ou/LGMobileDriver_WHQL_Ver_4.2.0.exe.htm)
    (16691672 bytes,

@@ -60,13 +60,13 @@ def check_block_size(comm,fd_num):
     if hex(comm.protocol_version) >= '0x1000008':
         _logger.debug("Protocol based handling: %06x" % comm.protocol_version)
         chunksize = 17408
-        data, fd_num = laf_read(comm, fd_num, read_offset // BLOCK_SIZE, chunksize)
+        data, fd_num = laf_read(comm, fd_num, read_offset // BLOCK_SIZE, chunksize, timeout=3000)
         table_data += data
         read_offset += chunksize
     else:
         while read_offset < end_offset:
             chunksize = min(end_offset - read_offset, BLOCK_SIZE * MAX_BLOCK_SIZE)
-            data, fd_num = laf_read(comm, fd_num, read_offset // BLOCK_SIZE, chunksize)
+            data, fd_num = laf_read(comm, fd_num, read_offset // BLOCK_SIZE, chunksize, timeout=3000)
             table_data += data
             read_offset += chunksize
 
@@ -129,7 +129,7 @@ def laf_open_disk(comm,opener):
     except:
         _logger.debug("Stopping here as the following open cmd is not available for this device:\n%s" % binascii.hexlify(opener))
 
-def laf_read(comm, fd_num, offset, size):
+def laf_read(comm, fd_num, offset, size, timeout=None):
     """Read size bytes at the given block offset."""
     try:
         read_cmd = lglaf.make_request(b'READ', args=[fd_num, offset, size])
@@ -138,7 +138,7 @@ def laf_read(comm, fd_num, offset, size):
 
     for attempt in range(3):
         try:
-            header, response = comm.call(read_cmd)
+            header, response = comm.call(read_cmd, timeout=timeout)
             break
         except usb.core.USBError as e:
             if attempt == 2:

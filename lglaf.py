@@ -332,11 +332,12 @@ class Communication(object):
         raise NotImplementedError
     def reset(self):
         self.read_buffer = b''
-    def call(self, payload):
+    def call(self, payload, timeout=None):
         """Sends a command and returns its response."""
         validate_message(payload)
         self.write(payload)
-        header = self.read(0x20)
+        _logger.debug("using timeout value of: %s", timeout)
+        header = self.read(0x20,timeout=timeout)
         validate_message(header, ignore_crc=True)
         cmd = header[0:4]
         size = struct.unpack_from('<I', header, 0x14)[0]
@@ -466,7 +467,7 @@ class USBCommunication(Communication):
 
 def challenge_response(comm, mode):
     request_kilo = make_request(b'KILO', args=[b'CENT', b'\0\0\0\0', b'\0\0\0\0', b'\0\0\0\0'])
-    kilo_header, kilo_response = comm.call(request_kilo)
+    kilo_header, kilo_response = comm.call(request_kilo, timeout=2000)
     kilo_challenge = kilo_header[8:12]
     _logger.debug("Challenge: %s" % binascii.hexlify(kilo_challenge))
     if USE_MFG_KEY:

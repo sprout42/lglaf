@@ -698,6 +698,7 @@ def main():
                 else:
                     part_header[dev],part_table[dev] = dict_partition_table(diskinfo, dev, showheader=True)
             close_fd(comm,disk_fd)
+            if devtype == "EMMC": break
           else: break
 
         if args.list:
